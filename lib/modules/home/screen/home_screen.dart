@@ -112,7 +112,11 @@ class HomeScreen extends StatelessWidget {
 
           // Get the latest message (the last one in ascending order)
           final lastMessage = snapshot.data!.docs.last['message'] ?? '';
-          return Text(lastMessage);
+          return Text(
+              lastMessage,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
         },
       ),
       onTap: () {

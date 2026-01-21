@@ -45,51 +45,56 @@ class ChatScreen extends GetView<ChatController> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
+    return GestureDetector(
+      onTap: (){
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: (){
+                  Get.back();
+                },
+                child: Icon(
+                  Icons.arrow_back,
+                  size: 20,
+                ),
+              ),
+              SizedBox(width: Get.width * 0.05,),
+              CircleAvatar(
+                backgroundImage: receiverUserPhoto.isNotEmpty
+                    ? NetworkImage(receiverUserPhoto)
+                    : null,
+                child: receiverUserPhoto.isEmpty
+                    ? const Icon(Icons.person)
+                    : null,
+              ),
+              SizedBox(width: Get.width * 0.04,),
+              Text(
+                receiverUserName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.background
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: Column(
           children: [
-            GestureDetector(
-              onTap: (){
-                Get.back();
-              },
-              child: Icon(
-                Icons.arrow_back,
-                size: 20,
-              ),
+            Expanded(
+              child: _buildMessageList(),
             ),
-            SizedBox(width: Get.width * 0.05,),
-            CircleAvatar(
-              backgroundImage: receiverUserPhoto.isNotEmpty
-                  ? NetworkImage(receiverUserPhoto)
-                  : null,
-              child: receiverUserPhoto.isEmpty
-                  ? const Icon(Icons.person)
-                  : null,
-            ),
-            SizedBox(width: Get.width * 0.04,),
-            Text(
-              receiverUserName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w400,
-                color: AppColors.background
-              ),
-            ),
+            _buildMessageInput(),
           ],
         ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _buildMessageList(),
-          ),
-          _buildMessageInput(),
-        ],
       ),
     );
   }
