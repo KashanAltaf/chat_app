@@ -4,10 +4,18 @@ import 'package:flutter/material.dart';
 class ChatBubble extends StatelessWidget {
   final String message;
   final Color color;
+  final double radiusTopLeft;
+  final double radiusBottomLeft;
+  final double radiusTopRight;
+  final double radiusBottomRight;
 
   const ChatBubble({
     required this.message,
     required this.color,
+    required this.radiusBottomLeft,
+    required this.radiusBottomRight,
+    required this.radiusTopLeft,
+    required this.radiusTopRight,
     super.key,
   });
 
@@ -19,7 +27,12 @@ class ChatBubble extends StatelessWidget {
         maxWidth: MediaQuery.of(context).size.width * 0.75, // limit bubble width
       ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(radiusTopRight),
+          topLeft: Radius.circular(radiusTopLeft),
+          bottomRight: Radius.circular(radiusBottomRight),
+          bottomLeft: Radius.circular(radiusBottomLeft),
+        ),
         color: color,
       ),
       child: Text(

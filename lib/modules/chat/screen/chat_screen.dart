@@ -150,6 +150,10 @@ class ChatScreen extends GetView<ChatController> {
             child: ChatBubble(
                 message: data['message'],
                 color: (data['senderId'] == _firebaseAuth.currentUser!.uid) ? Colors.blue : Colors.grey,
+                radiusBottomLeft: (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 8 : 0,
+              radiusBottomRight: (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 0 : 8,
+              radiusTopLeft: (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 8 : 8,
+              radiusTopRight: (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 8 : 8,
             ),
           ),
           Padding(
