@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chat_app/core/constants/app_colors.dart';
 import 'package:chat_app/data/services/chat_service.dart';
 import 'package:chat_app/modules/chat/controller/chat_controller.dart';
@@ -70,7 +71,7 @@ class ChatScreen extends GetView<ChatController> {
               SizedBox(width: Get.width * 0.05),
               CircleAvatar(
                 backgroundImage: receiverUserPhoto.isNotEmpty
-                    ? NetworkImage(receiverUserPhoto)
+                    ? CachedNetworkImageProvider(receiverUserPhoto)
                     : null,
                 child: receiverUserPhoto.isEmpty
                     ? const Icon(Icons.person)
@@ -139,7 +140,7 @@ class ChatScreen extends GetView<ChatController> {
 
         return ListView.builder(
           controller: controller.scrollController,
-          reverse: true, // Start at bottom showing latest messages
+          reverse: true,
           itemCount: reversedDocs.length,
           padding: const EdgeInsets.only(bottom: 10, top: 10),
           itemBuilder: (context, index) {
@@ -200,6 +201,7 @@ class ChatScreen extends GetView<ChatController> {
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
       child: Row(
         children: [
+
           Obx(() {
             bool hasText = controller.hasText.value;
             return Expanded(
@@ -216,7 +218,11 @@ class ChatScreen extends GetView<ChatController> {
                 ),
                 child: TextFormField(
                   controller: controller.messageController,
+                  maxLines: null,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
                   decoration: const InputDecoration(
+                    counter: Offstage(),
                     hintText: 'Enter message',
                     border: InputBorder.none,
                     isDense: true,
