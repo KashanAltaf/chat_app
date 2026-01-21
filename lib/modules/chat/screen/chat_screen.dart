@@ -111,14 +111,17 @@ class ChatScreen extends GetView<ChatController> {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
-        
+
         // Only show loading indicator on initial load when we have no data
-        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return Center(child: CircularProgressIndicator());
         }
 
         // If we have data, use it even if connection state is waiting (prevents flicker on keyboard open/close)
-        final docs = snapshot.hasData ? snapshot.data!.docs : <QueryDocumentSnapshot>[];
+        final docs = snapshot.hasData
+            ? snapshot.data!.docs
+            : <QueryDocumentSnapshot>[];
         final reversedDocs = docs.reversed.toList();
 
         // With reverse: true, ListView starts at position 0 (bottom) by default
@@ -201,7 +204,7 @@ class ChatScreen extends GetView<ChatController> {
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
       child: Row(
         children: [
-          SizedBox(width: 5,),
+          SizedBox(width: 5),
           Obx(() {
             bool hasText = controller.hasText.value;
             return Expanded(
@@ -252,8 +255,19 @@ class ChatScreen extends GetView<ChatController> {
                       ),
                     ),
                   )
-                : _SwipeGestureIcons();
+                : _SwipeGestureIcons(
+                    onPhotoTap: () async {
+                      await _chatService.getImage();
 
+                      if (_chatService.imageFile == null) return;
+
+                      await _chatService.uploadImage(receiverUserId);
+                      // keep scroll behaviour consistent
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        controller.updateAndMaybeScroll();
+                      });
+                    },
+                  );
           }),
         ],
       ),
@@ -262,18 +276,22 @@ class ChatScreen extends GetView<ChatController> {
 }
 
 class _SwipeGestureIcons extends StatefulWidget {
-  const _SwipeGestureIcons({super.key});
+  final VoidCallback onPhotoTap;
+  const _SwipeGestureIcons({super.key, required this.onPhotoTap});
 
   @override
   State<_SwipeGestureIcons> createState() => _SwipeGestureIconsState();
 }
 
-class _SwipeGestureIconsState extends State<_SwipeGestureIcons> with TickerProviderStateMixin {
+class _SwipeGestureIconsState extends State<_SwipeGestureIcons>
+    with TickerProviderStateMixin {
   bool _expanded = false;
   double _accumulatedDx = 0.0;
 
-  static const double _dragThreshold = 40; // distance in logical pixels to trigger
-  static const double _velocityThreshold = 300; // logical pixels/sec to trigger on fling
+  static const double _dragThreshold =
+      40; // distance in logical pixels to trigger
+  static const double _velocityThreshold =
+      300; // logical pixels/sec to trigger on fling
 
   void _onDragUpdate(DragUpdateDetails details) {
     _accumulatedDx += details.delta.dx;
@@ -312,17 +330,20 @@ class _SwipeGestureIconsState extends State<_SwipeGestureIcons> with TickerProvi
           mainAxisSize: MainAxisSize.min,
           children: _expanded
               ? [
-            const Icon(Icons.camera_alt_outlined, size: 30),
-            const SizedBox(width: 12),
-            const Icon(Icons.mic, size: 30),
-            const SizedBox(width: 12),
-            const Icon(Icons.photo, size: 30),
-          ]
+                  const Icon(Icons.camera_alt_outlined, size: 30),
+                  const SizedBox(width: 12),
+                  const Icon(Icons.mic, size: 30),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: widget.onPhotoTap,
+                    child: const Icon(Icons.photo, size: 30),
+                  ),
+                ]
               : [
-            const Icon(Icons.camera_alt_outlined, size: 30),
-            const SizedBox(width: 12),
-            const Icon(Icons.mic, size: 30),
-          ],
+                  const Icon(Icons.camera_alt_outlined, size: 30),
+                  const SizedBox(width: 12),
+                  const Icon(Icons.mic, size: 30),
+                ],
         ),
       ),
     );
