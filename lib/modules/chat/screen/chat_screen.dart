@@ -134,8 +134,21 @@ class ChatScreen extends GetView<ChatController> {
         : MainAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 10),
-            child: ChatBubble(message: data['message']),
+            padding: const EdgeInsets.only(left: 10, right: 10, top: 10),
+            child: ChatBubble(
+                message: data['message'],
+                color: (data['senderId'] == _firebaseAuth.currentUser!.uid) ? Colors.blue : Colors.grey,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 10.0, right: 10, bottom: 10),
+            child: Text(
+              data['timestamp'].toString(),
+              style: TextStyle(
+                fontWeight: FontWeight.w300,
+                fontSize: 12,
+              ),
+            ),
           ),
         ],
       )
