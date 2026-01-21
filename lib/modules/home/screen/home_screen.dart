@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chat_app/modules/chat/screen/chat_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -91,7 +92,7 @@ class HomeScreen extends StatelessWidget {
     return ListTile(
       leading: CircleAvatar(
         backgroundImage: data['photoUrl'] != null
-            ? NetworkImage(data['photoUrl'])
+            ? CachedNetworkImageProvider(data['photoUrl'])
             : null,
         child: data['photoUrl'] == null
             ? const Icon(Icons.person)
