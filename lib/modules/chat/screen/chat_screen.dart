@@ -29,11 +29,18 @@ class ChatScreen extends GetView<ChatController> {
 
   void sendMessages() async {
     if (controller.messageController.text.isNotEmpty) {
-      await _chatService.sendMessage(
-        receiverUserId,
-        controller.messageController.text,
-      );
+      final text = controller.messageController.text;
       controller.messageController.clear();
+
+      // mark locked before sending - stream callback will animate down after the message is inserted.
+      controller.markLockedBeforeSend();
+
+      await _chatService.sendMessage(receiverUserId, text);
+
+      // Optional: ensure UI stays at bottom after send (safe fallback)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.updateAndMaybeScroll();
+      });
     }
   }
 
@@ -96,24 +103,38 @@ class ChatScreen extends GetView<ChatController> {
   Widget _buildMessageList() {
     return StreamBuilder<QuerySnapshot>(
       stream: _chatService.getMessages(
-        _firebaseAuth.currentUser!.uid, // current user first
-        receiverUserId, // then receiver
+        _firebaseAuth.currentUser!.uid,
+        receiverUserId,
       ),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
-
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
         }
 
         final docs = snapshot.data!.docs;
 
-        return ListView(
-          children: docs
-              .map((document) => _buildMessageItem(document))
-              .toList(),
+        // Scroll to bottom on initial load or when new messages arrive
+        if (docs.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Only scroll if message count changed or it's the first load
+            if (docs.length != controller.lastMessageCount || !controller.hasInitialScrolled) {
+              controller.lastMessageCount = docs.length;
+              // This will jump instantly on first load, animate on new messages
+              controller.updateAndMaybeScroll();
+            }
+          });
+        }
+
+        return ListView.builder(
+          controller: controller.scrollController,
+          itemCount: docs.length,
+          padding: const EdgeInsets.only(bottom: 10, top: 10),
+          itemBuilder: (context, index) {
+            return _buildMessageItem(docs[index]);
+          },
         );
       },
     );
@@ -177,9 +198,7 @@ class ChatScreen extends GetView<ChatController> {
                 curve: Curves.easeInOut,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 // If you want extra spacing when icons are shown
-                margin: EdgeInsets.only(
-                  right: hasText ? 0 : 8,
-                ),
+                margin: EdgeInsets.only(right: hasText ? 0 : 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(25),
@@ -202,25 +221,29 @@ class ChatScreen extends GetView<ChatController> {
             // Only icons part rebuilds
             return controller.hasText.value
                 ? GestureDetector(
-              onTap: sendMessages,
-              child: Container(
-                height: 45,
-                width: 45,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.blue,
-                ),
-                child: const Icon(Icons.arrow_right_alt, size: 30, color: Colors.white),
-              ),
-            )
+                    onTap: sendMessages,
+                    child: Container(
+                      height: 45,
+                      width: 45,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blue,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_right_alt,
+                        size: 30,
+                        color: Colors.white,
+                      ),
+                    ),
+                  )
                 : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Icon(Icons.camera_alt_outlined, size: 30),
-                SizedBox(width: 12),
-                Icon(Icons.mic, size: 30),
-              ],
-            );
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.camera_alt_outlined, size: 30),
+                      SizedBox(width: 12),
+                      Icon(Icons.mic, size: 30),
+                    ],
+                  );
           }),
         ],
       ),
