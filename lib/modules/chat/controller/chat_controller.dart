@@ -44,12 +44,11 @@ class ChatController extends GetxController {
 
   void _onUserScroll() {
     if (!scrollController.hasClients) return;
-    final max = scrollController.position.maxScrollExtent;
     final pixels = scrollController.position.pixels;
-    final distanceFromBottom = max - pixels;
 
-    // If user scrolled away more than the threshold, unlock.
-    if (distanceFromBottom > bottomThreshold) {
+    // With reverse: true, position 0 is at bottom
+    // If user scrolled away from bottom (position > threshold), unlock.
+    if (pixels > bottomThreshold) {
       if (isLockedToBottom.value) isLockedToBottom.value = false;
     } else {
       if (!isLockedToBottom.value) isLockedToBottom.value = true;
@@ -57,46 +56,27 @@ class ChatController extends GetxController {
   }
 
   // Call to ensure the controller scrolls appropriately after the frame updates.
-  // If locked => only animate when content grew; jump when content shrank or first load.
+  // With reverse: true, position 0 is at bottom (latest messages)
   Future<void> updateAndMaybeScroll() async {
     if (!scrollController.hasClients) return;
 
-    final newMax = scrollController.position.maxScrollExtent;
-
-    // First load => jump instantly without animation to avoid jerk
-    if (!hasInitialScrolled && newMax > 0) {
-      hasInitialScrolled = true;
-      scrollController.jumpTo(newMax);
-      previousMaxScrollExtent = newMax;
-      return;
-    }
-
-    // After initial scroll, handle updates
+    // With reverse: true, we want to stay at position 0 (bottom) when locked
     if (isLockedToBottom.value) {
-      // If list grew, animate downward (no "up then down").
-      if (newMax > previousMaxScrollExtent + 0.5) {
-        await scrollController.animateTo(
-          newMax,
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeOut,
-        );
-      } else if (newMax < previousMaxScrollExtent - 0.5) {
-        // content shrank — jump (no animation needed)
-        scrollController.jumpTo(newMax);
+      final currentPosition = scrollController.position.pixels;
+      // If we're not at the bottom (position 0), jump there instantly
+      if (currentPosition > 0.5) {
+        scrollController.jumpTo(0);
       }
-      // if newMax ≈ previous, do nothing
     }
-    previousMaxScrollExtent = newMax;
   }
 
-  // Force lock and jump to bottom (used on keyboard close)
+  // Force lock and jump to bottom (position 0 with reverse: true)
   void lockAndJumpToBottom() {
     isLockedToBottom.value = true;
     if (!scrollController.hasClients) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController.hasClients) {
-        scrollController.jumpTo(scrollController.position.maxScrollExtent);
-        previousMaxScrollExtent = scrollController.position.maxScrollExtent;
+        scrollController.jumpTo(0);
       }
     });
   }

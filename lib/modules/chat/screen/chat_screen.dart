@@ -110,19 +110,28 @@ class ChatScreen extends GetView<ChatController> {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        
+        // Only show loading indicator on initial load when we have no data
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return Center(child: CircularProgressIndicator());
         }
 
-        final docs = snapshot.data!.docs;
+        // If we have data, use it even if connection state is waiting (prevents flicker on keyboard open/close)
+        final docs = snapshot.hasData ? snapshot.data!.docs : <QueryDocumentSnapshot>[];
+        final reversedDocs = docs.reversed.toList();
 
-        // Scroll to bottom on initial load or when new messages arrive
-        if (docs.isNotEmpty) {
+        // With reverse: true, ListView starts at position 0 (bottom) by default
+        // Mark as initial scrolled so we don't try to scroll on first load
+        if (reversedDocs.isNotEmpty && !controller.hasInitialScrolled) {
+          controller.hasInitialScrolled = true;
+          controller.lastMessageCount = reversedDocs.length;
+        }
+
+        // Scroll to bottom (position 0) when new messages arrive (only if locked to bottom)
+        if (reversedDocs.isNotEmpty && controller.hasInitialScrolled) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Only scroll if message count changed or it's the first load
-            if (docs.length != controller.lastMessageCount || !controller.hasInitialScrolled) {
-              controller.lastMessageCount = docs.length;
-              // This will jump instantly on first load, animate on new messages
+            if (reversedDocs.length != controller.lastMessageCount) {
+              controller.lastMessageCount = reversedDocs.length;
               controller.updateAndMaybeScroll();
             }
           });
@@ -130,10 +139,11 @@ class ChatScreen extends GetView<ChatController> {
 
         return ListView.builder(
           controller: controller.scrollController,
-          itemCount: docs.length,
+          reverse: true, // Start at bottom showing latest messages
+          itemCount: reversedDocs.length,
           padding: const EdgeInsets.only(bottom: 10, top: 10),
           itemBuilder: (context, index) {
-            return _buildMessageItem(docs[index]);
+            return _buildMessageItem(reversedDocs[index]);
           },
         );
       },
