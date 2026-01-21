@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
 class ChatScreen extends GetView<ChatController> {
   static const String id = '/chat';
@@ -35,6 +36,12 @@ class ChatScreen extends GetView<ChatController> {
       controller.messageController.clear();
     }
   }
+
+  String formatTimestamp(Timestamp timestamp) {
+    DateTime date = timestamp.toDate();
+    return DateFormat('hh:mm a').format(date);
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +150,7 @@ class ChatScreen extends GetView<ChatController> {
           Padding(
             padding: const EdgeInsets.only(left: 10.0, right: 10, bottom: 10),
             child: Text(
-              data['timestamp'].toString(),
+              formatTimestamp(data['timestamp']),
               style: TextStyle(
                 fontWeight: FontWeight.w300,
                 fontSize: 12,
