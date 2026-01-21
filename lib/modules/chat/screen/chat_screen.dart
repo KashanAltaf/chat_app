@@ -201,7 +201,7 @@ class ChatScreen extends GetView<ChatController> {
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
       child: Row(
         children: [
-
+          SizedBox(width: 5,),
           Obx(() {
             bool hasText = controller.hasText.value;
             return Expanded(
@@ -252,16 +252,78 @@ class ChatScreen extends GetView<ChatController> {
                       ),
                     ),
                   )
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.camera_alt_outlined, size: 30),
-                      SizedBox(width: 12),
-                      Icon(Icons.mic, size: 30),
-                    ],
-                  );
+                : _SwipeGestureIcons();
+
           }),
         ],
+      ),
+    );
+  }
+}
+
+class _SwipeGestureIcons extends StatefulWidget {
+  const _SwipeGestureIcons({super.key});
+
+  @override
+  State<_SwipeGestureIcons> createState() => _SwipeGestureIconsState();
+}
+
+class _SwipeGestureIconsState extends State<_SwipeGestureIcons> with TickerProviderStateMixin {
+  bool _expanded = false;
+  double _accumulatedDx = 0.0;
+
+  static const double _dragThreshold = 40; // distance in logical pixels to trigger
+  static const double _velocityThreshold = 300; // logical pixels/sec to trigger on fling
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    _accumulatedDx += details.delta.dx;
+    // NOW: swipe LEFT -> expand, swipe RIGHT -> collapse
+    if (_accumulatedDx < -_dragThreshold && !_expanded) {
+      setState(() => _expanded = true);
+      _accumulatedDx = 0;
+    } else if (_accumulatedDx > _dragThreshold && _expanded) {
+      setState(() => _expanded = false);
+      _accumulatedDx = 0;
+    }
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    final v = details.primaryVelocity ?? 0.0;
+    // NOW: negative velocity (left fling) expands, positive velocity (right fling) collapses
+    if (v < -_velocityThreshold) {
+      if (!_expanded) setState(() => _expanded = true);
+    } else if (v > _velocityThreshold) {
+      if (_expanded) setState(() => _expanded = false);
+    }
+    _accumulatedDx = 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragUpdate: _onDragUpdate,
+      onHorizontalDragEnd: _onDragEnd,
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: _expanded
+              ? [
+            const Icon(Icons.camera_alt_outlined, size: 30),
+            const SizedBox(width: 12),
+            const Icon(Icons.mic, size: 30),
+            const SizedBox(width: 12),
+            const Icon(Icons.photo, size: 30),
+          ]
+              : [
+            const Icon(Icons.camera_alt_outlined, size: 30),
+            const SizedBox(width: 12),
+            const Icon(Icons.mic, size: 30),
+          ],
+        ),
       ),
     );
   }
