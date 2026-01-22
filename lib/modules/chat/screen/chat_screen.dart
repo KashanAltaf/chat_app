@@ -233,10 +233,9 @@ class ChatScreen extends GetView<ChatController> {
               child: Container(height: 45, width: 45, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.blue), child: const Icon(Icons.arrow_right_alt, size: 30, color: Colors.white)),
             )
                 : GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragStart: (details) => controller.handleSwipeStart(details),
-              onHorizontalDragUpdate: (details) => controller.handleSwipeUpdate(details),
-              onHorizontalDragEnd: (_) => controller.handleSwipeEnd(),
+              onPanStart: (details) => controller.handleSwipeStart(details.globalPosition.dx),
+              onPanUpdate: (details) => controller.handleSwipeUpdate(details.globalPosition.dx),
+              onPanEnd: (_) => controller.handleSwipeEnd(),
               child: AnimatedSize(
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeInOut,
@@ -244,8 +243,7 @@ class ChatScreen extends GetView<ChatController> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () async {
+                      onTap: controller.shouldBlockTap() ? null : () async {
                         await _chatService.getImageFromCamera();
                         if (_chatService.imageFile == null) return;
                         await _chatService.uploadImage(receiverUserId);
@@ -255,15 +253,13 @@ class ChatScreen extends GetView<ChatController> {
                     ),
                     const SizedBox(width: 12),
                     GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: _openVoiceRecordingDialog,
+                      onTap: controller.shouldBlockTap() ? null : _openVoiceRecordingDialog,
                       child: const Icon(Icons.mic, size: 30),
                     ),
                     if (controller.swipeExpanded.value) ...[
                       const SizedBox(width: 12),
                       GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () async {
+                        onTap: controller.shouldBlockTap() ? null : () async {
                           await _chatService.getImage();
                           if (_chatService.imageFile == null) return;
                           await _chatService.uploadImage(receiverUserId);

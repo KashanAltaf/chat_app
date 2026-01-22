@@ -44,31 +44,40 @@ class ChatController extends GetxController {
   // Swipe gesture state
   RxBool swipeExpanded = false.obs;
   double swipeStartX = 0.0;
-  static const double swipeThreshold = 40.0; // pixels to trigger swipe
+  bool isSwiping = false;
+  static const double swipeThreshold = 30.0; // pixels to trigger swipe
 
-  void handleSwipeStart(DragStartDetails details) {
-    swipeStartX = details.globalPosition.dx;
+  void handleSwipeStart(double startX) {
+    swipeStartX = startX;
+    isSwiping = false;
   }
 
-  void handleSwipeUpdate(DragUpdateDetails details) {
-    final currentX = details.globalPosition.dx;
+  void handleSwipeUpdate(double currentX) {
     final deltaX = currentX - swipeStartX;
     
-    // Swipe right to expand (show photo icon)
-    if (deltaX > swipeThreshold && !swipeExpanded.value) {
+    // Only process if movement is significant
+    if (deltaX.abs() > 5) {
+      isSwiping = true;
+    }
+    
+    // Swipe left to expand (show photo icon)
+    if (deltaX < -swipeThreshold && !swipeExpanded.value) {
       swipeExpanded.value = true;
-      swipeStartX = currentX; // Reset start position to prevent immediate toggle
+      swipeStartX = currentX; // Reset start position
     } 
-    // Swipe left to collapse (hide photo icon)
-    else if (deltaX < -swipeThreshold && swipeExpanded.value) {
+    // Swipe right to collapse (hide photo icon)
+    else if (deltaX > swipeThreshold && swipeExpanded.value) {
       swipeExpanded.value = false;
-      swipeStartX = currentX; // Reset start position to prevent immediate toggle
+      swipeStartX = currentX; // Reset start position
     }
   }
 
   void handleSwipeEnd() {
     swipeStartX = 0.0;
+    isSwiping = false;
   }
+  
+  bool shouldBlockTap() => isSwiping;
 
   @override
   void onInit() {
