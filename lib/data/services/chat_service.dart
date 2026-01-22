@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:chat_app/modules/chat/model/message.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -129,6 +128,4 @@ class ChatService extends ChangeNotifier{
         .collection('messages')
         .orderBy('timestamp', descending: false).snapshots();
   }
-
-
 }

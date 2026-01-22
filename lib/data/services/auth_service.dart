@@ -37,6 +37,9 @@ class AuthService {
         'email': user.email,
         'name': user.displayName,
         'photoUrl': user.photoURL,
+        'isOnline': true,
+        'lastSeen': FieldValue.serverTimestamp(),
+        'typingTo': '',
         'provider': 'google',
         'createdAt': FieldValue.serverTimestamp(),
       });

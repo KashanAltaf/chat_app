@@ -109,15 +109,60 @@ class ChatScreen extends GetView<ChatController> {
                     : null,
               ),
               SizedBox(width: Get.width * 0.04),
-              Text(
-                receiverUserName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w400,
-                  color: AppColors.background,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    receiverUserName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.background,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(receiverUserId)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return SizedBox.shrink();
+                      final data = snapshot.data!.data() as Map<String, dynamic>?;
+
+                      if (data == null) return SizedBox.shrink();
+
+                      final isOnline = data['isOnline'] ?? false;
+                      final lastSeen = (data['lastSeen'] as Timestamp?)?.toDate();
+                      final typingTo = data['typingTo'] ?? '';
+
+                      final isTyping = typingTo == _firebaseAuth.currentUser!.uid;
+
+                      String statusText;
+                      if (isTyping) {
+                        statusText = 'Typing...';
+                      } else if (isOnline) {
+                        statusText = 'Online';
+                      } else if (lastSeen != null) {
+                        statusText = 'Last seen: ${DateFormat('hh:mm a').format(lastSeen)}';
+                      } else {
+                        statusText = 'Offline';
+                      }
+
+                      return Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black,
+                          fontStyle: isTyping ? FontStyle.italic : FontStyle.normal,
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ],
           ),
