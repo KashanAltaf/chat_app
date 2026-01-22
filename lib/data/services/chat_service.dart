@@ -5,11 +5,13 @@ import 'package:chat_app/modules/chat/model/message.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:mime/mime.dart';
 
 
-class ChatService extends ChangeNotifier{
+class ChatService extends GetxService {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -82,7 +84,6 @@ class ChatService extends ChangeNotifier{
           .add(imageMessage.toMap());
 
       imageFile = null;
-      notifyListeners();
     } catch (e) {
       debugPrint('Cloudinary upload error: $e');
     }
@@ -128,4 +129,50 @@ class ChatService extends ChangeNotifier{
         .collection('messages')
         .orderBy('timestamp', descending: false).snapshots();
   }
+
+  Future<void> uploadVoice(String receiverId, String filePath) async {
+    final currentUser = _firebaseAuth.currentUser!;
+    final Timestamp timestamp = Timestamp.now();
+
+    List<String> ids = [currentUser.uid, receiverId]..sort();
+    final chatRoomId = ids.join('_');
+
+    try {
+      final uri = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/raw/upload');
+
+      final request = http.MultipartRequest('POST', uri)
+        ..fields['upload_preset'] = _uploadPreset
+        ..fields['folder'] = 'chat_audio/$chatRoomId'
+        ..files.add(await http.MultipartFile.fromPath(
+          'file',
+          filePath,
+          contentType: http.MediaType.parse(lookupMimeType(filePath) ?? 'audio/aac'),
+        ));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('Cloudinary upload failed: ${response.statusCode} ${response.body}');
+      }
+
+      final resBody = jsonDecode(response.body);
+      final String audioUrl = resBody['secure_url'];
+
+      final message = {
+        'senderEmail': currentUser.email,
+        'senderId': currentUser.uid,
+        'receiverId': receiverId,
+        'message': audioUrl,
+        'timestamp': timestamp,
+        'type': 'voice',
+      };
+
+      await _firestore.collection('chat_rooms').doc(chatRoomId).collection('messages').add(message);
+    } catch (e) {
+      debugPrint('Cloudinary voice upload error: $e');
+      rethrow;
+    }
+  }
+
 }

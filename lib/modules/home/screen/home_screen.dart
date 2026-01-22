@@ -18,6 +18,7 @@ class HomeScreen extends StatelessWidget {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final ChatService _chatService = ChatService();
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +95,7 @@ class HomeScreen extends StatelessWidget {
       ),
       title: Text(data['name'] ?? 'No Name'),
       trailing: StreamBuilder<QuerySnapshot>(
-        stream: ChatService().getMessages(_auth.currentUser!.uid, data['uid']),
+        stream: _chatService.getMessages(_auth.currentUser!.uid, data['uid']),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Text('Loading...');
@@ -113,7 +114,7 @@ class HomeScreen extends StatelessWidget {
         },
       ),
       subtitle: StreamBuilder<QuerySnapshot>(
-        stream: ChatService().getMessages(_auth.currentUser!.uid, data['uid']),
+        stream: _chatService.getMessages(_auth.currentUser!.uid, data['uid']),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Text('Loading...');
