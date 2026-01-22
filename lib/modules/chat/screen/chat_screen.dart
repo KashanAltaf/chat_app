@@ -7,6 +7,7 @@ import 'package:chat_app/core/constants/app_colors.dart';
 import 'package:chat_app/data/services/chat_service.dart';
 import 'package:chat_app/modules/chat/controller/chat_controller.dart';
 import 'package:chat_app/modules/chat/widgets/voice_recording_dialog.dart';
+import 'package:chat_app/widgets/image_preview_screen.dart';
 import 'package:chat_bubbles/bubbles/bubble_normal_audio.dart';
 import 'package:chat_bubbles/date_chips/date_chip.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -171,6 +172,11 @@ class ChatScreen extends GetView<ChatController> {
                             onSeekChanged: (value) => controller.changeSeek(value),
                             onPlayPauseButtonClick: () => controller.playPauseAudio(data['message']),
                             sent: isMe,
+                            textStyle: TextStyle(
+                              color: Colors.transparent,
+                              fontSize: 0
+                            ),
+                            seen: true,
                           );
                         })
                             : ChatBubble(
@@ -351,7 +357,14 @@ class ChatBubble extends StatelessWidget {
         padding: const EdgeInsets.all(5.0),
         child: isImage
             ? GestureDetector(
-          onTap: () {/* open image preview if you have it */},
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ImagePreviewScreen(imageUrl: message),
+              ),
+            );
+          },
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: CachedNetworkImage(imageUrl: message, fit: BoxFit.cover, placeholder: (c, u) => Container(height: 180, width: 180, alignment: Alignment.center, child: const CircularProgressIndicator(strokeWidth: 2)), errorWidget: (c, u, e) => const Icon(Icons.broken_image)),
