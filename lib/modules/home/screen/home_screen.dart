@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:intl/intl.dart';
 
 import '../../../data/services/chat_service.dart';
 import '../../login/screen/login_screen.dart';
@@ -29,24 +30,20 @@ class HomeScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: GestureDetector(
-      onTap: () async {
-        // Firebase logout
-        await FirebaseAuth.instance.signOut();
+              onTap: () async {
+                // Firebase logout
+                await FirebaseAuth.instance.signOut();
 
-        // Google logout (THIS is the key)
-        await _googleSignIn.signOut();
+                // Google logout (THIS is the key)
+                await _googleSignIn.signOut();
 
-        // Clear navigation & controllers
-        Get.deleteAll();
-        Get.offAllNamed(LoginScreen.id);
-      },
-      child: const Icon(
-        Icons.logout,
-        size: 30,
-      ),
-    ),
-
-    )
+                // Clear navigation & controllers
+                Get.deleteAll();
+                Get.offAllNamed(LoginScreen.id);
+              },
+              child: const Icon(Icons.logout, size: 30),
+            ),
+          ),
         ],
       ),
       body: _buildUserList(context),
@@ -80,8 +77,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   /// 🔹 Builds a single user tile
-  Widget _buildUserListItem(
-      BuildContext context, DocumentSnapshot document) {
+  Widget _buildUserListItem(BuildContext context, DocumentSnapshot document) {
     final data = document.data() as Map<String, dynamic>;
 
     // Skip current user
@@ -94,14 +90,30 @@ class HomeScreen extends StatelessWidget {
         backgroundImage: data['photoUrl'] != null
             ? CachedNetworkImageProvider(data['photoUrl'])
             : null,
-        child: data['photoUrl'] == null
-            ? const Icon(Icons.person)
-            : null,
+        child: data['photoUrl'] == null ? const Icon(Icons.person) : null,
       ),
       title: Text(data['name'] ?? 'No Name'),
+      trailing: StreamBuilder<QuerySnapshot>(
+        stream: ChatService().getMessages(_auth.currentUser!.uid, data['uid']),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Text('Loading...');
+          }
+
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Text('No message yet');
+          }
+
+          // Get the latest message timestamp
+          final Timestamp timestamp = snapshot.data!.docs.last['timestamp'];
+          final DateTime dateTime = timestamp.toDate();
+          final formattedTime = DateFormat('hh:mm a').format(dateTime);
+
+          return Text(formattedTime, maxLines: 1, overflow: TextOverflow.ellipsis);
+        },
+      ),
       subtitle: StreamBuilder<QuerySnapshot>(
-        stream: ChatService().getMessages(
-            _auth.currentUser!.uid, data['uid']),
+        stream: ChatService().getMessages(_auth.currentUser!.uid, data['uid']),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Text('Loading...');
@@ -113,11 +125,15 @@ class HomeScreen extends StatelessWidget {
 
           // Get the latest message (the last one in ascending order)
           final lastMessage = snapshot.data!.docs.last['message'] ?? '';
-          return Text(
-              lastMessage.toString().contains('cloudinary') ? 'Photo' : lastMessage,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          );
+          return lastMessage.toString().contains('/image/')
+              ? Row(
+                  children: [
+                    Icon(Icons.camera_alt_outlined, size: 25),
+                    SizedBox(width: 5),
+                    Text('Photo'),
+                  ],
+                )
+              : Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis);
         },
       ),
       onTap: () {
@@ -126,8 +142,8 @@ class HomeScreen extends StatelessWidget {
           arguments: {
             'receiverUserEmail': data['email'],
             'receiverUserId': data['uid'],
-            'receiverUserName' : data['name'],
-            'receiverUserPhoto' : data['photoUrl'],
+            'receiverUserName': data['name'],
+            'receiverUserPhoto': data['photoUrl'],
           },
         );
       },
