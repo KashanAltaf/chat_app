@@ -129,11 +129,19 @@ class HomeScreen extends StatelessWidget {
           return lastMessage.toString().contains('/image/')
               ? Row(
                   children: [
-                    Icon(Icons.camera_alt_outlined, size: 25),
+                    Icon(Icons.camera_alt_outlined, size: 25, color: Colors.blue),
                     SizedBox(width: 5),
                     Text('Photo'),
                   ],
                 )
+          : lastMessage.toString().contains('/raw/')
+              ? Row(
+            children: [
+              Icon(Icons.mic, size: 25, color: Colors.blue,),
+              SizedBox(width: 5),
+              Text('Voice message'),
+            ],
+          )
               : Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis);
         },
       ),

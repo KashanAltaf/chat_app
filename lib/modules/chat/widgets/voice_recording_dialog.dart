@@ -78,7 +78,7 @@ class VoiceRecordingDialog extends GetView<ChatController> {
               if (!controller.isRecording.value) {
                 return Column(
                   children: [
-                    const Icon(Icons.mic, size: 64, color: Colors.red),
+                    const Icon(Icons.mic, size: 64, color: Colors.blue),
                     const SizedBox(height: 16),
                     const Text('Tap to start recording'),
                     const SizedBox(height: 24),
@@ -87,7 +87,7 @@ class VoiceRecordingDialog extends GetView<ChatController> {
                       icon: const Icon(Icons.mic),
                       label: const Text('Start Recording'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+                        backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
@@ -101,13 +101,13 @@ class VoiceRecordingDialog extends GetView<ChatController> {
                   Obx(() => Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: controller.isPaused.value ? Colors.grey : Colors.red.withOpacity(0.1),
+                      color: controller.isPaused.value ? Colors.red.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       controller.isPaused.value ? Icons.pause : Icons.mic,
                       size: 64,
-                      color: controller.isPaused.value ? Colors.grey : Colors.red,
+                      color: controller.isPaused.value ? Colors.red : Colors.blue,
                     ),
                   )),
                   const SizedBox(height: 16),
@@ -153,7 +153,12 @@ class VoiceRecordingDialog extends GetView<ChatController> {
             const SizedBox(height: 16),
             TextButton(
               onPressed: _handleCancel,
-              child: const Text('Cancel'),
+              child: Text(
+                  'Cancel',
+                style: TextStyle(
+                  color: Colors.black,
+                ),
+              ),
             ),
           ],
         ),

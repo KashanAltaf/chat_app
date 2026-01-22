@@ -157,12 +157,12 @@ class ChatScreen extends GetView<ChatController> {
                     crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.only(left: 10, right: 10, top: 10),
+                        padding: const EdgeInsets.only(left: 10, right: 10, top: 0),
                         child: data['type'] == 'voice'
                             ? Obx(() {
                           final isCurrentAudio = controller.currentPlayingUrl.value == data['message'];
                           return BubbleNormalAudio(
-                            color: isMe ? Colors.blue : const Color(0xFFE8E8EE),
+                            color: isMe ? Colors.blue : Colors.grey,
                             duration: controller.audioDuration.value.toDouble(),
                             position: isCurrentAudio ? controller.audioPosition.value.toDouble() : 0.0,
                             isPlaying: isCurrentAudio && controller.isPlaying.value,
