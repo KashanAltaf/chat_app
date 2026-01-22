@@ -121,6 +121,18 @@ class ChatScreen extends GetView<ChatController> {
               ),
             ],
           ),
+          actions: [
+            Icon(
+              Icons.call,
+              size: 30,
+            ),
+            SizedBox(width: 20,),
+            Icon(
+              Icons.video_call,
+              size: 30,
+            ),
+            SizedBox(width: 15,),
+          ],
         ),
         body: Column(
           children: [
