@@ -3,6 +3,7 @@ import 'package:chat_app/core/constants/app_colors.dart';
 import 'package:chat_app/data/services/chat_service.dart';
 import 'package:chat_app/modules/chat/controller/chat_controller.dart';
 import 'package:chat_app/widgets/chat_bubble.dart';
+import 'package:chat_bubbles/date_chips/date_chip.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,36 @@ class ChatScreen extends GetView<ChatController> {
 
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final ChatService _chatService = ChatService();
+
+  bool _isNewDay(Timestamp current, Timestamp? previous) {
+    if (previous == null) return true;
+
+    final curr = current.toDate();
+    final prev = previous.toDate();
+
+    return curr.year != prev.year ||
+        curr.month != prev.month ||
+        curr.day != prev.day;
+  }
+
+  DateTime _dateOnly(DateTime dt) =>
+      DateTime(dt.year, dt.month, dt.day);
+
+  String _formatDateLabel(DateTime date) {
+    final now = DateTime.now();
+
+    if (_dateOnly(date) == _dateOnly(now)) {
+      return 'Today';
+    }
+
+    if (_dateOnly(date) ==
+        _dateOnly(now.subtract(const Duration(days: 1)))) {
+      return 'Yesterday';
+    }
+
+    return DateFormat('d MMM yyyy').format(date);
+  }
+
 
   void sendMessages() async {
     if (controller.messageController.text.isNotEmpty) {
@@ -147,55 +178,85 @@ class ChatScreen extends GetView<ChatController> {
           itemCount: reversedDocs.length,
           padding: const EdgeInsets.only(bottom: 10, top: 10),
           itemBuilder: (context, index) {
-            return _buildMessageItem(reversedDocs[index]);
+            final currentDoc = reversedDocs[index];
+            final prevDoc =
+            index + 1 < reversedDocs.length ? reversedDocs[index + 1] : null;
+
+            return _buildMessageItem(
+              currentDoc,
+              previousDoc: prevDoc,
+            );
           },
+
         );
       },
     );
   }
 
-  Widget _buildMessageItem(QueryDocumentSnapshot document) {
+  Widget _buildMessageItem(QueryDocumentSnapshot document, {QueryDocumentSnapshot? previousDoc,}) {
     Map<String, dynamic> data = document.data() as Map<String, dynamic>;
+    final Timestamp timestamp = data['timestamp'];
+    final Timestamp? prevTimestamp =
+    previousDoc != null ? previousDoc['timestamp'] : null;
+
+    final showDateChip =
+    _isNewDay(timestamp, prevTimestamp);
+
+    final isMe =
+        data['senderId'] == _firebaseAuth.currentUser!.uid;
+
     var alignment = (data['senderId'] == _firebaseAuth.currentUser!.uid)
         ? Alignment.centerRight
         : Alignment.centerLeft;
 
-    return Container(
-      alignment: alignment,
-      child: Column(
-        crossAxisAlignment: (data['senderId'] == _firebaseAuth.currentUser!.uid)
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        mainAxisAlignment: (data['senderId'] == _firebaseAuth.currentUser!.uid)
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        children: [
+    return Column(
+      children: [
+        if (showDateChip)
           Padding(
-            padding: const EdgeInsets.only(left: 10, right: 10, top: 10),
-            child: ChatBubble(
-              message: data['message'],
-              color: (data['senderId'] == _firebaseAuth.currentUser!.uid)
-                  ? Colors.blue
-                  : Colors.grey,
-              radiusBottomLeft:
-                  (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 8 : 0,
-              radiusBottomRight:
-                  (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 0 : 8,
-              radiusTopLeft:
-                  (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 8 : 8,
-              radiusTopRight:
-                  (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 8 : 8,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: DateChip(
+              date: timestamp.toDate(),
+              color: const Color(0x558AD3D5),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(left: 10.0, right: 10, bottom: 10),
-            child: Text(
-              formatTimestamp(data['timestamp']),
-              style: TextStyle(fontWeight: FontWeight.w300, fontSize: 12),
-            ),
+        Container(
+          alignment: alignment,
+          child: Column(
+            crossAxisAlignment: (data['senderId'] == _firebaseAuth.currentUser!.uid)
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            mainAxisAlignment: (data['senderId'] == _firebaseAuth.currentUser!.uid)
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 10, right: 10, top: 10),
+                child: ChatBubble(
+                  message: data['message'],
+                  color: (data['senderId'] == _firebaseAuth.currentUser!.uid)
+                      ? Colors.blue
+                      : Colors.grey,
+                  radiusBottomLeft:
+                      (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 8 : 0,
+                  radiusBottomRight:
+                      (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 0 : 8,
+                  radiusTopLeft:
+                      (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 8 : 8,
+                  radiusTopRight:
+                      (data['senderId'] == _firebaseAuth.currentUser!.uid) ? 8 : 8,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 10.0, right: 10, bottom: 10),
+                child: Text(
+                  formatTimestamp(data['timestamp']),
+                  style: TextStyle(fontWeight: FontWeight.w300, fontSize: 12),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

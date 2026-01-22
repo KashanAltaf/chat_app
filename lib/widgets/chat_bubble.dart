@@ -30,7 +30,7 @@ class ChatBubble extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 260),
       padding: isImage ? EdgeInsets.zero : const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isImage ? Colors.transparent : color,
+        color: color,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(radiusTopLeft),
           topRight: Radius.circular(radiusTopRight),
@@ -38,37 +38,40 @@ class ChatBubble extends StatelessWidget {
           bottomRight: Radius.circular(radiusBottomRight),
         ),
       ),
-      child: isImage
-          ? GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ImagePreviewScreen(imageUrl: message),
+      child: Padding(
+        padding: const EdgeInsets.all(5.0),
+        child: isImage
+            ? GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ImagePreviewScreen(imageUrl: message),
+              ),
+            );
+          },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: CachedNetworkImage(
+              imageUrl: message,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                height: 180,
+                width: 180,
+                alignment: Alignment.center,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              ),
+              errorWidget: (context, url, error) =>
+              const Icon(Icons.broken_image),
             ),
-          );
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: CachedNetworkImage(
-            imageUrl: message,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Container(
-              height: 180,
-              width: 180,
-              alignment: Alignment.center,
-              child: const CircularProgressIndicator(strokeWidth: 2),
-            ),
-            errorWidget: (context, url, error) =>
-            const Icon(Icons.broken_image),
           ),
-        ),
-      )
-          : Text(
-              message,
-              style: const TextStyle(fontSize: 16, color: Colors.white),
-              softWrap: true,
-            ),
+        )
+            : Text(
+                message,
+                style: const TextStyle(fontSize: 16, color: Colors.white),
+                softWrap: true,
+              ),
+      ),
     );
   }
 }
