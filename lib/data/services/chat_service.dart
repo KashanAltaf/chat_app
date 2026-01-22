@@ -141,7 +141,7 @@ class ChatService extends GetxService {
         .orderBy('timestamp', descending: false).snapshots();
   }
 
-  Future<void> uploadVoice(String receiverId, String filePath) async {
+  Future<void> uploadVoice(String receiverId, String filePath, List<double> waveform,) async {
     final currentUser = _firebaseAuth.currentUser!;
     final Timestamp timestamp = Timestamp.now();
 
@@ -177,6 +177,7 @@ class ChatService extends GetxService {
         'message': audioUrl,
         'timestamp': timestamp,
         'type': 'voice',
+        'waveform': waveform,
       };
 
       await _firestore.collection('chat_rooms').doc(chatRoomId).collection('messages').add(message);

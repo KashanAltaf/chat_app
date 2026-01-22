@@ -16,6 +16,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../widgets/audio_chat_bubble.dart';
+
 class ChatScreen extends GetView<ChatController> {
   static const String id = '/chat';
 
@@ -46,35 +48,71 @@ class ChatScreen extends GetView<ChatController> {
           title: Row(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              GestureDetector(onTap: () => Get.back(), child: Icon(Icons.arrow_back, size: 20)),
+              GestureDetector(
+                onTap: () => Get.back(),
+                child: Icon(Icons.arrow_back, size: 20),
+              ),
               SizedBox(width: Get.width * 0.05),
               CircleAvatar(
-                backgroundImage: receiverUserPhoto.isNotEmpty ? CachedNetworkImageProvider(receiverUserPhoto) : null,
-                child: receiverUserPhoto.isEmpty ? const Icon(Icons.person) : null,
+                backgroundImage: receiverUserPhoto.isNotEmpty
+                    ? CachedNetworkImageProvider(receiverUserPhoto)
+                    : null,
+                child: receiverUserPhoto.isEmpty
+                    ? const Icon(Icons.person)
+                    : null,
               ),
               SizedBox(width: Get.width * 0.04),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(receiverUserName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w400, color: AppColors.background)),
+                  Text(
+                    receiverUserName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.background,
+                    ),
+                  ),
                   SizedBox(height: 2),
                   StreamBuilder<DocumentSnapshot>(
-                    stream: FirebaseFirestore.instance.collection('users').doc(receiverUserId).snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(receiverUserId)
+                        .snapshots(),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) return SizedBox.shrink();
-                      final data = snapshot.data!.data() as Map<String, dynamic>?;
+                      final data =
+                          snapshot.data!.data() as Map<String, dynamic>?;
                       if (data == null) return SizedBox.shrink();
                       final isOnline = data['isOnline'] ?? false;
-                      final lastSeen = (data['lastSeen'] as Timestamp?)?.toDate();
+                      final lastSeen = (data['lastSeen'] as Timestamp?)
+                          ?.toDate();
                       final typingTo = data['typingTo'] ?? '';
-                      final isTyping = typingTo == _firebaseAuth.currentUser!.uid;
+                      final isTyping =
+                          typingTo == _firebaseAuth.currentUser!.uid;
                       String statusText;
-                      if (isTyping) statusText = 'Typing...';
-                      else if (isOnline) statusText = 'Online';
-                      else if (lastSeen != null) statusText = 'Last seen: ${DateFormat('hh:mm a').format(lastSeen)}';
-                      else statusText = 'Offline';
-                      return Text(statusText, style: TextStyle(fontSize: 14, color: Colors.black, fontStyle: isTyping ? FontStyle.italic : FontStyle.normal));
+                      if (isTyping)
+                        statusText = 'Typing...';
+                      else if (isOnline)
+                        statusText = 'Online';
+                      else if (lastSeen != null)
+                        statusText =
+                            'Last seen: ${DateFormat('hh:mm a').format(lastSeen)}';
+                      else
+                        statusText = 'Offline';
+                      return Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black,
+                          fontStyle: isTyping
+                              ? FontStyle.italic
+                              : FontStyle.normal,
+                        ),
+                      );
                     },
                   ),
                 ],
@@ -88,10 +126,12 @@ class ChatScreen extends GetView<ChatController> {
             SizedBox(width: 15),
           ],
         ),
-        body: Column(children: [
-          Expanded(child: _buildMessageList()),
-          _buildMessageInput(),
-        ]),
+        body: Column(
+          children: [
+            Expanded(child: _buildMessageList()),
+            _buildMessageInput(),
+          ],
+        ),
       ),
     );
   }
@@ -102,13 +142,18 @@ class ChatScreen extends GetView<ChatController> {
         receiverUserId: receiverUserId,
         onSend: (String filePath) async {
           try {
-            await _chatService.uploadVoice(receiverUserId, filePath);
+            await _chatService.uploadVoice(receiverUserId, filePath, controller.recordedWaveform.toList(),);
+            controller.recordedWaveform.clear();
+            controller.resetRecording();
             WidgetsBinding.instance.addPostFrameCallback((_) {
               controller.updateAndMaybeScroll();
             });
           } catch (e) {
             debugPrint('Failed to upload voice: $e');
-            Get.snackbar('Error', 'Failed to send voice message. Please try again.');
+            Get.snackbar(
+              'Error',
+              'Failed to send voice message. Please try again.',
+            );
           }
         },
       ),
@@ -123,12 +168,22 @@ class ChatScreen extends GetView<ChatController> {
     final chatRoomId = ids.join('_');
 
     return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('chat_rooms').doc(chatRoomId).collection('messages').orderBy('timestamp', descending: true).snapshots(),
+      stream: _firestore
+          .collection('chat_rooms')
+          .doc(chatRoomId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) return Center(child: CircularProgressIndicator());
+        if (snapshot.hasError)
+          return Center(child: Text('Error: ${snapshot.error}'));
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData)
+          return Center(child: CircularProgressIndicator());
 
-        final docs = snapshot.hasData ? snapshot.data!.docs : <QueryDocumentSnapshot>[];
+        final docs = snapshot.hasData
+            ? snapshot.data!.docs
+            : <QueryDocumentSnapshot>[];
         // already descending order; ListView with reverse true keeps bottom at index 0
         return ListView.builder(
           controller: controller.scrollController,
@@ -150,49 +205,90 @@ class ChatScreen extends GetView<ChatController> {
                 if (showDateChip)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: DateChip(date: (data['timestamp'] as Timestamp).toDate(), color: const Color(0x558AD3D5)),
+                    child: DateChip(
+                      date: (data['timestamp'] as Timestamp).toDate(),
+                      color: const Color(0x558AD3D5),
+                    ),
                   ),
                 Container(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isMe
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Column(
-                    crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    crossAxisAlignment: isMe
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.only(left: 10, right: 10, top: 0),
+                        padding: const EdgeInsets.only(
+                          left: 10,
+                          right: 10,
+                          top: 0,
+                        ),
                         child: data['type'] == 'voice'
                             ? Obx(() {
-                          final isCurrentAudio = controller.currentPlayingUrl.value == data['message'];
-                          return BubbleNormalAudio(
-                            color: isMe ? Colors.blue : Colors.grey,
-                            duration: controller.audioDuration.value.toDouble(),
-                            position: isCurrentAudio ? controller.audioPosition.value.toDouble() : 0.0,
-                            isPlaying: isCurrentAudio && controller.isPlaying.value,
-                            isLoading: isCurrentAudio && controller.isLoading.value,
-                            isPause: isCurrentAudio && controller.isPause.value,
-                            onSeekChanged: (value) => controller.changeSeek(value),
-                            onPlayPauseButtonClick: () => controller.playPauseAudio(data['message']),
-                            sent: isMe,
-                            textStyle: TextStyle(
-                              color: Colors.transparent,
-                              fontSize: 0
-                            ),
-                            seen: true,
-                          );
-                        })
+                                final isCurrentAudio =
+                                    controller.currentPlayingUrl.value ==
+                                    data['message'];
+
+                                final duration = Duration(
+                                  milliseconds:
+                                      (controller.audioDuration.value * 1000)
+                                          .toInt(),
+                                );
+                                final position = isCurrentAudio
+                                    ? Duration(
+                                        milliseconds:
+                                            (controller.audioPosition.value *
+                                                    1000)
+                                                .toInt(),
+                                      )
+                                    : Duration.zero;
+                                final waveform =
+                                (data['waveform'] as List?)?.cast<double>();
+
+                                return AudioChatBubbleWithWaveform(
+                                  isMe: isMe,
+                                  isPlaying:
+                                      isCurrentAudio &&
+                                      controller.isPlaying.value,
+                                  isLoading:
+                                      isCurrentAudio &&
+                                      controller.isLoading.value,
+                                  isPause:
+                                      isCurrentAudio &&
+                                      controller.isPause.value,
+                                  duration: duration,
+                                  position: position,
+                                  waveformSamples: waveform,
+                                  onSeekChanged: (seconds) =>
+                                      controller.changeSeek(seconds),
+                                  onPlayPause: () => controller.playPauseAudio(
+                                    data['message'],
+                                  ),
+                                );
+                              })
                             : ChatBubble(
-                          message: data['message'],
-                          color: isMe ? Colors.blue : Colors.grey,
-                          radiusBottomLeft: isMe ? 8 : 0,
-                          radiusBottomRight: isMe ? 0 : 8,
-                          radiusTopLeft: 8,
-                          radiusTopRight: 8,
-                        ),
+                                message: data['message'],
+                                color: isMe ? Colors.blue : Colors.grey,
+                                radiusBottomLeft: isMe ? 8 : 0,
+                                radiusBottomRight: isMe ? 0 : 8,
+                                radiusTopLeft: 8,
+                                radiusTopRight: 8,
+                              ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.only(left: 10.0, right: 10, bottom: 10),
+                        padding: const EdgeInsets.only(
+                          left: 10.0,
+                          right: 10,
+                          bottom: 10,
+                        ),
                         child: Text(
                           formatTimestamp(data['timestamp']),
-                          style: TextStyle(fontWeight: FontWeight.w300, fontSize: 12),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w300,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -220,13 +316,23 @@ class ChatScreen extends GetView<ChatController> {
                 curve: Curves.easeInOut,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 margin: EdgeInsets.only(right: hasText ? 0 : 8),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), border: Border.all(color: AppColors.background, width: 1)),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
+                  border: Border.all(color: AppColors.background, width: 1),
+                ),
                 child: TextFormField(
                   controller: controller.messageController,
                   maxLines: null,
                   keyboardType: TextInputType.multiline,
                   textInputAction: TextInputAction.newline,
-                  decoration: const InputDecoration(counter: Offstage(), hintText: 'Enter message', border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 12)),
+                  decoration: const InputDecoration(
+                    counter: Offstage(),
+                    hintText: 'Enter message',
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
               ),
             );
@@ -235,49 +341,82 @@ class ChatScreen extends GetView<ChatController> {
           Obx(() {
             return controller.hasText.value
                 ? GestureDetector(
-              onTap: sendMessages,
-              child: Container(height: 45, width: 45, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.blue), child: const Icon(Icons.arrow_right_alt, size: 30, color: Colors.white)),
-            )
-                : GestureDetector(
-              onPanStart: (details) => controller.handleSwipeStart(details.globalPosition.dx),
-              onPanUpdate: (details) => controller.handleSwipeUpdate(details.globalPosition.dx),
-              onPanEnd: (_) => controller.handleSwipeEnd(),
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: controller.shouldBlockTap() ? null : () async {
-                        await _chatService.getImageFromCamera();
-                        if (_chatService.imageFile == null) return;
-                        await _chatService.uploadImage(receiverUserId);
-                        WidgetsBinding.instance.addPostFrameCallback((_) => controller.updateAndMaybeScroll());
-                      },
-                      child: const Icon(Icons.camera_alt, size: 30),
-                    ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: controller.shouldBlockTap() ? null : _openVoiceRecordingDialog,
-                      child: const Icon(Icons.mic, size: 30),
-                    ),
-                    if (controller.swipeExpanded.value) ...[
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: controller.shouldBlockTap() ? null : () async {
-                          await _chatService.getImage();
-                          if (_chatService.imageFile == null) return;
-                          await _chatService.uploadImage(receiverUserId);
-                          WidgetsBinding.instance.addPostFrameCallback((_) => controller.updateAndMaybeScroll());
-                        },
-                        child: const Icon(Icons.photo, size: 30),
+                    onTap: sendMessages,
+                    child: Container(
+                      height: 45,
+                      width: 45,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blue,
                       ),
-                    ],
-                  ],
-                ),
-              ),
-            );
+                      child: const Icon(
+                        Icons.arrow_right_alt,
+                        size: 30,
+                        color: Colors.white,
+                      ),
+                    ),
+                  )
+                : GestureDetector(
+                    onPanStart: (details) =>
+                        controller.handleSwipeStart(details.globalPosition.dx),
+                    onPanUpdate: (details) =>
+                        controller.handleSwipeUpdate(details.globalPosition.dx),
+                    onPanEnd: (_) => controller.handleSwipeEnd(),
+                    child: AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: controller.shouldBlockTap()
+                                ? null
+                                : () async {
+                                    await _chatService.getImageFromCamera();
+                                    if (_chatService.imageFile == null) return;
+                                    await _chatService.uploadImage(
+                                      receiverUserId,
+                                    );
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback(
+                                          (_) =>
+                                              controller.updateAndMaybeScroll(),
+                                        );
+                                  },
+                            child: const Icon(Icons.camera_alt, size: 30),
+                          ),
+                          const SizedBox(width: 12),
+                          GestureDetector(
+                            onTap: controller.shouldBlockTap()
+                                ? null
+                                : _openVoiceRecordingDialog,
+                            child: const Icon(Icons.mic, size: 30),
+                          ),
+                          if (controller.swipeExpanded.value) ...[
+                            const SizedBox(width: 12),
+                            GestureDetector(
+                              onTap: controller.shouldBlockTap()
+                                  ? null
+                                  : () async {
+                                      await _chatService.getImage();
+                                      if (_chatService.imageFile == null)
+                                        return;
+                                      await _chatService.uploadImage(
+                                        receiverUserId,
+                                      );
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback(
+                                            (_) => controller
+                                                .updateAndMaybeScroll(),
+                                          );
+                                    },
+                              child: const Icon(Icons.photo, size: 30),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
           }),
         ],
       ),
@@ -288,7 +427,9 @@ class ChatScreen extends GetView<ChatController> {
   bool _isNewDay(Timestamp current, Timestamp? previous) {
     if (previous == null) return true;
     final curr = current.toDate(), prev = previous.toDate();
-    return curr.year != prev.year || curr.month != prev.month || curr.day != prev.day;
+    return curr.year != prev.year ||
+        curr.month != prev.month ||
+        curr.day != prev.day;
   }
 
   DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
@@ -296,7 +437,8 @@ class ChatScreen extends GetView<ChatController> {
   String _formatDateLabel(DateTime date) {
     final now = DateTime.now();
     if (_dateOnly(date) == _dateOnly(now)) return 'Today';
-    if (_dateOnly(date) == _dateOnly(now.subtract(const Duration(days: 1)))) return 'Yesterday';
+    if (_dateOnly(date) == _dateOnly(now.subtract(const Duration(days: 1))))
+      return 'Yesterday';
     return DateFormat('d MMM yyyy').format(date);
   }
 
@@ -306,11 +448,14 @@ class ChatScreen extends GetView<ChatController> {
       controller.messageController.clear();
       controller.markLockedBeforeSend();
       await _chatService.sendMessage(receiverUserId, text);
-      WidgetsBinding.instance.addPostFrameCallback((_) => controller.updateAndMaybeScroll());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => controller.updateAndMaybeScroll(),
+      );
     }
   }
 
-  String formatTimestamp(Timestamp timestamp) => DateFormat('hh:mm a').format(timestamp.toDate());
+  String formatTimestamp(Timestamp timestamp) =>
+      DateFormat('hh:mm a').format(timestamp.toDate());
 }
 
 // ------------------ ChatBubble & VoiceBubble ------------------
@@ -332,11 +477,17 @@ class ChatBubble extends StatelessWidget {
     this.radiusBottomRight = 8,
   });
 
-  bool get isImage => message.startsWith('https://res.cloudinary.com') && (message.contains('/image/upload') || message.contains('/image/upload/'));
+  bool get isImage =>
+      message.startsWith('https://res.cloudinary.com') &&
+      (message.contains('/image/upload') || message.contains('/image/upload/'));
   bool get isAudio {
     if (!message.startsWith('https://res.cloudinary.com')) return false;
     // Cloudinary raw uploads often contain '/raw/upload' — check that or known audio extensions
-    return message.contains('/raw/upload') || message.endsWith('.aac') || message.endsWith('.m4a') || message.endsWith('.mp3') || message.endsWith('.wav');
+    return message.contains('/raw/upload') ||
+        message.endsWith('.aac') ||
+        message.endsWith('.m4a') ||
+        message.endsWith('.mp3') ||
+        message.endsWith('.wav');
   }
 
   @override
@@ -357,31 +508,47 @@ class ChatBubble extends StatelessWidget {
         padding: const EdgeInsets.all(5.0),
         child: isImage
             ? GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ImagePreviewScreen(imageUrl: message),
-              ),
-            );
-          },
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: CachedNetworkImage(imageUrl: message, fit: BoxFit.cover, placeholder: (c, u) => Container(height: 180, width: 180, alignment: Alignment.center, child: const CircularProgressIndicator(strokeWidth: 2)), errorWidget: (c, u, e) => const Icon(Icons.broken_image)),
-          ),
-        )
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ImagePreviewScreen(imageUrl: message),
+                    ),
+                  );
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: message,
+                    fit: BoxFit.cover,
+                    placeholder: (c, u) => Container(
+                      height: 180,
+                      width: 180,
+                      alignment: Alignment.center,
+                      child: const CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    errorWidget: (c, u, e) => const Icon(Icons.broken_image),
+                  ),
+                ),
+              )
             : isAudio
             ? Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.audiotrack, color: Colors.white),
-            const SizedBox(width: 8),
-            const Text('Voice message', style: TextStyle(fontSize: 16, color: Colors.white)),
-          ],
-        )
-            : Text(message, style: const TextStyle(fontSize: 16, color: Colors.white), softWrap: true),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.audiotrack, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Voice message',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
+                ],
+              )
+            : Text(
+                message,
+                style: const TextStyle(fontSize: 16, color: Colors.white),
+                softWrap: true,
+              ),
       ),
     );
   }
 }
-

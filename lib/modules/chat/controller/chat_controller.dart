@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
@@ -6,11 +7,16 @@ import 'package:just_audio/just_audio.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../utils/waveform_utils.dart';
+
 class ChatController extends GetxController {
   final TextEditingController messageController = TextEditingController();
   RxBool hasText = false.obs;
 
   final ScrollController scrollController = ScrollController();
+
+  RxList<double> recordedWaveform = <double>[].obs;
+
 
   // Lock mechanism & helpers
   RxBool isLockedToBottom = true.obs; // true = keep pinned to bottom
@@ -265,14 +271,21 @@ class ChatController extends GetxController {
   Future<void> stopRecording() async {
     _stopRecordingTimer();
     if (!isRecording.value) return;
+
     try {
-      await recorder.stopRecorder();
+      final path = await recorder.stopRecorder();
       isRecording.value = false;
       isPaused.value = false;
+
+      if (path != null) {
+        recordedWaveform.value =
+        await WaveformUtils.extractWaveform(File(path));
+      }
     } catch (e) {
       debugPrint('Failed to stop recording: $e');
     }
   }
+
 
   void _startRecordingTimer() {
     _stopRecordingTimer();

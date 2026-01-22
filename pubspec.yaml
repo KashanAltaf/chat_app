@@ -52,6 +52,7 @@ dependencies:
   flutter_sound: ^9.30.0
   just_audio: ^0.10.5
   mime: ^2.0.0
+  just_waveform: ^0.0.7
 
 dev_dependencies:
   flutter_test:
