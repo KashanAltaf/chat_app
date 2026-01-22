@@ -51,7 +51,12 @@ class ChatBubble extends StatelessWidget {
             );
           },
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(radiusTopLeft),
+              topRight: Radius.circular(radiusTopRight),
+              bottomLeft: Radius.circular(radiusBottomLeft),
+              bottomRight: Radius.circular(radiusBottomRight),
+            ),
             child: CachedNetworkImage(
               imageUrl: message,
               fit: BoxFit.cover,

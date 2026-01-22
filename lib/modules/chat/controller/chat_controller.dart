@@ -43,7 +43,32 @@ class ChatController extends GetxController {
 
   // Swipe gesture state
   RxBool swipeExpanded = false.obs;
-  double swipeAccumulatedDx = 0.0;
+  double swipeStartX = 0.0;
+  static const double swipeThreshold = 40.0; // pixels to trigger swipe
+
+  void handleSwipeStart(DragStartDetails details) {
+    swipeStartX = details.globalPosition.dx;
+  }
+
+  void handleSwipeUpdate(DragUpdateDetails details) {
+    final currentX = details.globalPosition.dx;
+    final deltaX = currentX - swipeStartX;
+    
+    // Swipe right to expand (show photo icon)
+    if (deltaX > swipeThreshold && !swipeExpanded.value) {
+      swipeExpanded.value = true;
+      swipeStartX = currentX; // Reset start position to prevent immediate toggle
+    } 
+    // Swipe left to collapse (hide photo icon)
+    else if (deltaX < -swipeThreshold && swipeExpanded.value) {
+      swipeExpanded.value = false;
+      swipeStartX = currentX; // Reset start position to prevent immediate toggle
+    }
+  }
+
+  void handleSwipeEnd() {
+    swipeStartX = 0.0;
+  }
 
   @override
   void onInit() {

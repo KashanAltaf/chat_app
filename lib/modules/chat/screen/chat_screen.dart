@@ -232,24 +232,49 @@ class ChatScreen extends GetView<ChatController> {
               onTap: sendMessages,
               child: Container(height: 45, width: 45, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.blue), child: const Icon(Icons.arrow_right_alt, size: 30, color: Colors.white)),
             )
-                : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                GestureDetector(
-                  onTap: () async {
-                    await _chatService.getImage();
-                    if (_chatService.imageFile == null) return;
-                    await _chatService.uploadImage(receiverUserId);
-                    WidgetsBinding.instance.addPostFrameCallback((_) => controller.updateAndMaybeScroll());
-                  },
-                  child: const Icon(Icons.photo, size: 30),
+                : GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragStart: (details) => controller.handleSwipeStart(details),
+              onHorizontalDragUpdate: (details) => controller.handleSwipeUpdate(details),
+              onHorizontalDragEnd: (_) => controller.handleSwipeEnd(),
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () async {
+                        await _chatService.getImageFromCamera();
+                        if (_chatService.imageFile == null) return;
+                        await _chatService.uploadImage(receiverUserId);
+                        WidgetsBinding.instance.addPostFrameCallback((_) => controller.updateAndMaybeScroll());
+                      },
+                      child: const Icon(Icons.camera_alt, size: 30),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _openVoiceRecordingDialog,
+                      child: const Icon(Icons.mic, size: 30),
+                    ),
+                    if (controller.swipeExpanded.value) ...[
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () async {
+                          await _chatService.getImage();
+                          if (_chatService.imageFile == null) return;
+                          await _chatService.uploadImage(receiverUserId);
+                          WidgetsBinding.instance.addPostFrameCallback((_) => controller.updateAndMaybeScroll());
+                        },
+                        child: const Icon(Icons.photo, size: 30),
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: _openVoiceRecordingDialog,
-                  child: const Icon(Icons.mic, size: 30),
-                ),
-              ],
+              ),
             );
           }),
         ],

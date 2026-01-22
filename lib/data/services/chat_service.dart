@@ -32,6 +32,17 @@ class ChatService extends GetxService {
     }
   }
 
+  Future<void> getImageFromCamera() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? xFile = await picker.pickImage(
+      source: ImageSource.camera,
+    );
+
+    if (xFile != null) {
+      imageFile = File(xFile.path);
+    }
+  }
+
   Future<void> uploadImage(String receiverId) async {
     if (imageFile == null) return;
 
