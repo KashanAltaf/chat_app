@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:chat_app/modules/chat/model/message.dart';
@@ -5,12 +6,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 
 class ChatService extends ChangeNotifier{
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static const String _cloudName = 'dcutscliq';
+  static const String _uploadPreset = 'chat_images_unsigned';
+
 
   File? imageFile;
 
@@ -28,37 +34,45 @@ class ChatService extends ChangeNotifier{
   Future<void> uploadImage(String receiverId) async {
     if (imageFile == null) return;
 
-    final String currentUserId = _firebaseAuth.currentUser!.uid;
-    final String currentUserEmail = _firebaseAuth.currentUser!.email.toString();
+    final currentUser = _firebaseAuth.currentUser!;
     final Timestamp timestamp = Timestamp.now();
 
-    List<String> ids = [currentUserId, receiverId];
-    ids.sort();
-    String chatRoomId = ids.join("_");
+    List<String> ids = [currentUser.uid, receiverId]..sort();
+    final chatRoomId = ids.join('_');
 
     try {
-      final String fileName =
-          '${currentUserId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      /// 🔼 Upload to Cloudinary
+      final uri = Uri.parse(
+        'https://api.cloudinary.com/v1_1/$_cloudName/image/upload',
+      );
 
-      final Reference storageRef = FirebaseStorage.instance
-          .ref()
-          .child('chat_images')
-          .child(chatRoomId)
-          .child(fileName);
+      final request = http.MultipartRequest('POST', uri)
+        ..fields['upload_preset'] = _uploadPreset
+        ..fields['folder'] = 'chat_images/$chatRoomId'
+        ..files.add(
+          await http.MultipartFile.fromPath(
+            'file',
+            imageFile!.path,
+          ),
+        );
 
-      // ✅ IMPORTANT: wait for upload to finish
-      final TaskSnapshot snapshot =
-      await storageRef.putFile(imageFile!);
+      final response = await request.send();
 
-      // ✅ Now the object definitely exists
-      final String downloadUrl =
-      await snapshot.ref.getDownloadURL();
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('Cloudinary upload failed');
+      }
 
-      Message imageMessage = Message(
-        senderEmail: currentUserEmail,
-        senderId: currentUserId,
+      final resBody =
+      jsonDecode(await response.stream.bytesToString());
+
+      final String imageUrl = resBody['secure_url'];
+
+      /// 💬 Save message in Firestore
+      final imageMessage = Message(
+        senderEmail: currentUser.email!,
+        senderId: currentUser.uid,
         receiverId: receiverId,
-        message: downloadUrl,
+        message: imageUrl,
         timestamp: timestamp,
       );
 
@@ -71,7 +85,7 @@ class ChatService extends ChangeNotifier{
       imageFile = null;
       notifyListeners();
     } catch (e) {
-      debugPrint('Image upload failed: $e');
+      debugPrint('Cloudinary upload error: $e');
     }
   }
 
