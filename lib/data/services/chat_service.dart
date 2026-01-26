@@ -102,31 +102,28 @@ class ChatService extends GetxService {
 
   //Send message
   Future<void> sendMessage(String receiverId, String message) async {
-    //get current user info
-    final String currentUserId = _firebaseAuth.currentUser!.uid;
-    final String currentUserEmail = _firebaseAuth.currentUser!.email.toString();
-    final Timestamp timestamp = Timestamp.now();
+    final currentUser = _firebaseAuth.currentUser!;
+    final timestamp = Timestamp.now();
 
-    //create a new message
-    Message newMessage = Message(
-        senderEmail: currentUserEmail,
-        senderId: currentUserId,
-        receiverId: receiverId,
-        message: message,
-        timestamp: timestamp
+    // Create new message
+    final newMessage = Message(
+      senderEmail: currentUser.email!,
+      senderId: currentUser.uid,
+      receiverId: receiverId,
+      message: message,
+      timestamp: timestamp,
     );
-    //construct chat room id from current user id and receiver id (sorted)
-    List<String> ids = [currentUserId, receiverId];
-    ids.sort();
-    String chatRoomId = ids.join("_");
 
-    //add new message to database
+    // Construct deterministic chatRoomId
+    final ids = [currentUser.uid, receiverId]..sort();
+    final chatRoomId = ids.join("_");
+
+    // Add message to Firestore
     await _firestore
-    .collection('chat_rooms')
-    .doc(chatRoomId)
-    .collection('messages')
-    .add(newMessage.toMap());
-
+        .collection('chat_rooms')
+        .doc(chatRoomId)
+        .collection('messages')
+        .add(newMessage.toMap());
   }
 
   //Get messages

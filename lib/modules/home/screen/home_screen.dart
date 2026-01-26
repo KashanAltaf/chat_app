@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/services/chat_service.dart';
+import '../../../utils/firebase_api.dart';
 import '../../login/screen/login_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -32,6 +33,10 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: GestureDetector(
               onTap: () async {
+                // Remove FCM token before logout
+                final firebaseApi = FirebaseApi();
+                await firebaseApi.removeFCMTokenFromFirestore();
+
                 // Firebase logout
                 await FirebaseAuth.instance.signOut();
 

@@ -12,10 +12,12 @@ import 'package:chat_bubbles/bubbles/bubble_normal_audio.dart';
 import 'package:chat_bubbles/date_chips/date_chip.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../../utils/firebase_api.dart';
 import '../widgets/audio_chat_bubble.dart';
 
 class ChatScreen extends GetView<ChatController> {
@@ -364,7 +366,9 @@ class ChatScreen extends GetView<ChatController> {
           Obx(() {
             return controller.hasText.value
                 ? GestureDetector(
-                    onTap: sendMessages,
+                    onTap: (){
+                      sendMessages(receiverUserId);
+                    },
                     child: Container(
                       height: 45,
                       width: 45,
@@ -446,17 +450,42 @@ class ChatScreen extends GetView<ChatController> {
         curr.day != prev.day;
   }
 
-  Future<void> sendMessages() async {
-    if (controller.messageController.text.isNotEmpty) {
-      final text = controller.messageController.text;
-      controller.messageController.clear();
-      controller.markLockedBeforeSend();
+  Future<void> sendMessages(String receiverUserId) async {
+    final text = controller.messageController.text.trim();
+    if (text.isEmpty) return;
+
+    // Clear input & lock scroll before async work
+    controller.messageController.clear();
+    controller.markLockedBeforeSend();
+
+    try {
+      // 1️⃣ Send message to Firestore
       await _chatService.sendMessage(receiverUserId, text);
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => controller.updateAndMaybeScroll(),
+
+      // 2️⃣ Compute chatRoomId (same logic as ChatService)
+      final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+      final ids = [currentUserId, receiverUserId]..sort();
+      final chatRoomId = ids.join('_');
+
+      // 3️⃣ Send push notification
+      await FirebaseApi().sendPushNotification(
+        receiverUserId: receiverUserId,
+        messageContent: text,
+        chatId: chatRoomId,
+        messageType: 'text',
       );
+
+      // 4️⃣ Scroll to bottom if locked
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.updateAndMaybeScroll();
+      });
+
+    } catch (e, stackTrace) {
+      debugPrint('sendMessages error: $e');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
+
 
   String formatTimestamp(Timestamp timestamp) =>
       DateFormat('hh:mm a').format(timestamp.toDate());
