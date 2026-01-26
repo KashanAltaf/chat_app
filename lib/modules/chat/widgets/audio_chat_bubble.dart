@@ -1,5 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'package:chat_app/modules/chat/controller/chat_controller.dart';
 
 /// Waveform painter draws vertical bars. `samples` should be normalized (0..1).
 class AudioChatBubble extends CustomPainter {
@@ -60,7 +63,9 @@ class AudioChatBubble extends CustomPainter {
 }
 
 /// Audio bubble with waveform and seek-by-tap/drag.
+/// DESIGN: same as original. FUNCTIONALITY: uses ChatController if `audioUrl` provided.
 class AudioChatBubbleWithWaveform extends StatefulWidget {
+  // Original props kept for backward compatibility
   final bool isMe;
   final bool isPlaying;
   final bool isLoading;
@@ -71,6 +76,9 @@ class AudioChatBubbleWithWaveform extends StatefulWidget {
   final VoidCallback onPlayPause;
   final List<double>? waveformSamples; // normalized 0..1, recommended 64..256 samples
   final double maxWidth; // max width for bubble
+
+  // NEW (optional) — if provided, widget will use ChatController to control playback
+  final String? audioUrl;
 
   const AudioChatBubbleWithWaveform({
     Key? key,
@@ -84,6 +92,7 @@ class AudioChatBubbleWithWaveform extends StatefulWidget {
     required this.onPlayPause,
     this.waveformSamples,
     this.maxWidth = 360,
+    this.audioUrl, // optional, preferred
   }) : super(key: key);
 
   @override
@@ -96,6 +105,8 @@ class _AudioChatBubbleWithWaveformState
   // When user is dragging on waveform we track local fraction
   bool _isInteracting = false;
   double _localFraction = 0.0;
+
+  final ChatController controller = Get.find<ChatController>();
 
   // Generate a pleasant placeholder waveform if none provided.
   List<double> _generatePlaceholder(int n) {
@@ -141,8 +152,17 @@ class _AudioChatBubbleWithWaveformState
 
   void _finishInteraction(double width) {
     final fraction = _localFraction.clamp(0.0, 1.0);
-    final seconds = widget.duration.inMilliseconds * fraction / 1000.0;
-    widget.onSeekChanged?.call(seconds);
+
+    // If user provided audioUrl, use controller's duration to calculate seconds
+    if (widget.audioUrl != null && controller.audioDuration.value > 0) {
+      final seconds = controller.audioDuration.value * fraction;
+      controller.seekSeconds(seconds);
+    } else {
+      // fallback to original behavior using widget.duration
+      final seconds = widget.duration.inMilliseconds * fraction / 1000.0;
+      widget.onSeekChanged?.call(seconds);
+    }
+
     setState(() {
       _isInteracting = false;
     });
@@ -151,18 +171,112 @@ class _AudioChatBubbleWithWaveformState
   @override
   Widget build(BuildContext context) {
     final bubbleColor = widget.isMe ? Colors.blue : Colors.grey;
-    final playedColor = widget.isMe ? Colors.white : Colors.black87;
+    final playedColor = widget.isMe ? Colors.white : Colors.white;
     final baseColor = widget.isMe
         ? Colors.white.withOpacity(0.18)
         : Colors.black26.withOpacity(0.12);
 
     final samples = _prepareSamples(widget.waveformSamples);
-    final playedFraction = _isInteracting
-        ? _localFraction
-        : (widget.duration.inMilliseconds > 0
-        ? (widget.position.inMilliseconds /
-        max(1, widget.duration.inMilliseconds))
-        : 0.0);
+
+    // Play button content: prefer controller state if audioUrl is provided, else use widget props
+    Widget playButton() {
+      // If audioUrl provided — use controller reactive variables
+      if (widget.audioUrl != null) {
+        return Obx(() {
+          final isSame = controller.currentPlayingUrl.value == widget.audioUrl;
+          final showingPause = isSame && controller.isPlaying.value;
+          return Icon(
+            showingPause ? Icons.pause : Icons.play_arrow,
+            color: Colors.white,
+            size: 30,
+          );
+        });
+      }
+
+      // Fallback: simple non-reactive icon using passed props (no Obx)
+      return Center(
+        child: Icon(
+          widget.isPlaying ? Icons.pause : Icons.play_arrow,
+          color: Colors.white,
+          size: 30,
+        ),
+      );
+    }
+
+    // Waveform widget: only use Obx when audioUrl provided (so Obx always reads observables)
+    Widget waveformWidget() {
+      return LayoutBuilder(builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragStart: (d) => _handleInteraction(d.localPosition, width),
+          onHorizontalDragUpdate: (d) => _handleInteraction(d.localPosition, width),
+          onHorizontalDragEnd: (_) => _finishInteraction(width),
+          onTapDown: (d) => _handleInteraction(d.localPosition, width),
+          onTapUp: (_) => _finishInteraction(width),
+          child: SizedBox(
+            height: 60,
+            // If audioUrl is provided, we must observe controller values -> use Obx.
+            // Otherwise render a plain CustomPaint (no reactive read).
+            child: widget.audioUrl != null
+                ? Obx(() {
+              double playedFraction;
+              final isSame = controller.currentPlayingUrl.value == widget.audioUrl;
+              if (isSame && controller.audioDuration.value > 0 && !_isInteracting) {
+                playedFraction = (controller.audioPosition.value.toDouble() /
+                    controller.audioDuration.value.toDouble())
+                    .clamp(0.0, 1.0);
+              } else if (_isInteracting) {
+                playedFraction = _localFraction;
+              } else {
+                playedFraction = (widget.duration.inMilliseconds > 0
+                    ? (widget.position.inMilliseconds /
+                    max(1, widget.duration.inMilliseconds))
+                    : 0.0)
+                    .clamp(0.0, 1.0);
+              }
+
+              return CustomPaint(
+                painter: AudioChatBubble(
+                  samples: samples,
+                  playedFraction: playedFraction,
+                  playedColor: playedColor,
+                  baseColor: baseColor,
+                  barWidth: 1,
+                  spacing: 2.2,
+                  radius: 2.2,
+                ),
+              );
+            })
+                : Builder(builder: (_) {
+              // Non-reactive path
+              double playedFraction;
+              if (_isInteracting) {
+                playedFraction = _localFraction;
+              } else {
+                playedFraction = (widget.duration.inMilliseconds > 0
+                    ? (widget.position.inMilliseconds /
+                    max(1, widget.duration.inMilliseconds))
+                    : 0.0)
+                    .clamp(0.0, 1.0);
+              }
+
+              return CustomPaint(
+                painter: AudioChatBubble(
+                  samples: samples,
+                  playedFraction: playedFraction,
+                  playedColor: playedColor,
+                  baseColor: baseColor,
+                  barWidth: 1,
+                  spacing: 2.2,
+                  radius: 2.2,
+                ),
+              );
+            }),
+          ),
+        );
+      });
+    }
 
     return Align(
       alignment: widget.isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -174,7 +288,7 @@ class _AudioChatBubbleWithWaveformState
         ),
         child: Row(
           children: [
-            // Play / Loading
+            // Play / Loading (keeps original stacked white circle + play button)
             Stack(
               children: [
                 Container(
@@ -182,30 +296,26 @@ class _AudioChatBubbleWithWaveformState
                   width: 90,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    shape: BoxShape.circle
+                    shape: BoxShape.circle,
                   ),
                 ),
                 GestureDetector(
-                  onTap: widget.isLoading ? null : widget.onPlayPause,
+                  onTap: () {
+                    // If audioUrl available, call controller API; else fallback to passed handler
+                    if (widget.audioUrl != null) {
+                      controller.playOrToggle(widget.audioUrl!);
+                    } else {
+                      widget.onPlayPause();
+                    }
+                  },
                   child: Container(
                     width: 70,
                     height: 70,
                     decoration: BoxDecoration(
-                      color: widget.isMe ? Colors.blue : Colors.white,
+                      color: widget.isMe ? Colors.blue : Colors.grey,
                       shape: BoxShape.circle,
                     ),
-                    child: Center(
-                      child: widget.isLoading
-                          ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                          : Icon(
-                        widget.isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: widget.isMe ? Colors.white : Colors.black,
-                      ),
-                    ),
+                    child: playButton(),
                   ),
                 ),
               ],
@@ -215,40 +325,11 @@ class _AudioChatBubbleWithWaveformState
 
             // Waveform area: interactive
             Expanded(
-              child: LayoutBuilder(builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                return GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onHorizontalDragStart: (d) =>
-                      _handleInteraction(d.localPosition, width),
-                  onHorizontalDragUpdate: (d) =>
-                      _handleInteraction(d.localPosition, width),
-                  onHorizontalDragEnd: (_) => _finishInteraction(width),
-                  onTapDown: (d) => _handleInteraction(d.localPosition, width),
-                  onTapUp: (_) => _finishInteraction(width),
-                  child: SizedBox(
-                    height: 60,
-                    child: CustomPaint(
-                      painter: AudioChatBubble(
-                        samples: samples,
-                        playedFraction: playedFraction,
-                        playedColor: playedColor,
-                        baseColor: baseColor,
-                        barWidth: 1,
-                        spacing: 2.2,
-                        radius: 2.2,
-                      ),
-                      child: Container(),
-                    ),
-                  ),
-                );
-              }),
+              child: waveformWidget(),
             ),
 
             const SizedBox(width: 8),
 
-            // Optional: small visual indicator; not a textual duration
-            // you can remove this or replace with an icon
             Container(width: 6),
           ],
         ),

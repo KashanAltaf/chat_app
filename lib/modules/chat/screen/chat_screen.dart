@@ -94,15 +94,17 @@ class ChatScreen extends GetView<ChatController> {
                       final isTyping =
                           typingTo == _firebaseAuth.currentUser!.uid;
                       String statusText;
-                      if (isTyping)
+                      if (isTyping) {
                         statusText = 'Typing...';
-                      else if (isOnline)
+                      } else if (isOnline) {
                         statusText = 'Online';
-                      else if (lastSeen != null)
+                      }
+                      else if (lastSeen != null) {
                         statusText =
-                            'Last seen: ${DateFormat('hh:mm a').format(lastSeen)}';
-                      else
+                        'Last seen: ${DateFormat('hh:mm a').format(lastSeen)}';
+                      }else {
                         statusText = 'Offline';
+                      }
                       return Text(
                         statusText,
                         style: TextStyle(
