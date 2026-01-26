@@ -31,9 +31,19 @@ class LoginScreen extends GetView<LoginController> {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Obx(() => GestureDetector(
-                onTap: controller.isLoading.value 
-                    ? null 
-                    : () => controller.signInWithGoogle(),
+                onTap: controller.isLoading.value
+                    ? null
+                    : () async {
+                  // Ask permission first
+                  final granted = await controller.requestNotificationPermission();
+                  if (granted) {
+                    // proceed with sign in
+                    controller.signInWithGoogle();
+                  } else {
+                    // Optional: still let user sign in even without permission:
+                    // controller.signInWithGoogle();
+                  }
+                },
                 child: Container(
                   height: 51,
                   width: double.infinity,

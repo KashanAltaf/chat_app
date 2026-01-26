@@ -42,7 +42,7 @@ dependencies:
   google_sign_in: ^6.2.1
   cloud_firestore: ^5.6.12
   intl: ^0.20.2
-  cached_network_image: ^3.4.1
+  cached_network_image: ^3.3.1
   path_provider: ^2.1.5
   image_picker: ^1.2.1
   firebase_storage: ^12.4.10
@@ -53,6 +53,8 @@ dependencies:
   just_audio: ^0.10.5
   mime: ^2.0.0
   just_waveform: ^0.0.7
+  firebase_messaging: ^15.2.10
+  flutter_local_notifications: ^19.5.0
 
 dev_dependencies:
   flutter_test:

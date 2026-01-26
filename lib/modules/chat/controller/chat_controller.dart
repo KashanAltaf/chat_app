@@ -119,8 +119,8 @@ class ChatController extends GetxController {
 
       // If playback completed, reset
       if (processing == ja.ProcessingState.completed) {
-        // schedule reset to allow UI to settle
-        Future.microtask(() => _onPlaybackComplete());
+        // Schedule reset to allow UI to settle
+        Future.microtask(_onPlaybackComplete);
       }
     });
 
@@ -143,12 +143,7 @@ class ChatController extends GetxController {
     } catch (_) {}
 
     // Reset UI state
-    isPlaying.value = false;
-    isLoading.value = false;
-    isPause.value = false;
-    currentPlayingUrl.value = null;
-    audioPosition.value = 0;
-    audioDuration.value = 0;
+    _resetAudioState();
   }
 
 
@@ -176,10 +171,9 @@ class ChatController extends GetxController {
 
     // With reverse: true, position 0 is at bottom
     // If user scrolled away from bottom (position > threshold), unlock.
-    if (pixels > bottomThreshold) {
-      if (isLockedToBottom.value) isLockedToBottom.value = false;
-    } else {
-      if (!isLockedToBottom.value) isLockedToBottom.value = true;
+    final shouldLock = pixels <= bottomThreshold;
+    if (isLockedToBottom.value != shouldLock) {
+      isLockedToBottom.value = shouldLock;
     }
   }
 
@@ -298,6 +292,16 @@ class ChatController extends GetxController {
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
+  // Optimize: Batch reset operations
+  void _resetAudioState() {
+    isPlaying.value = false;
+    isLoading.value = false;
+    isPause.value = false;
+    currentPlayingUrl.value = null;
+    audioPosition.value = 0;
+    audioDuration.value = 0;
+  }
+
   /// Ensure recorder is initialized. Returns true if successful, false otherwise.
   Future<bool> ensureRecorderInitialized() async {
     if (recorderInitialized.value) return true;
@@ -389,11 +393,7 @@ class ChatController extends GetxController {
     } catch (e) {
       debugPrint('Playback error: $e');
       // Reset on failure
-      currentPlayingUrl.value = null;
-      isLoading.value = false;
-      isPlaying.value = false;
-      audioPosition.value = 0;
-      audioDuration.value = 0;
+      _resetAudioState();
     }
   }
 
@@ -419,13 +419,8 @@ class ChatController extends GetxController {
     } catch (e) {
       debugPrint('stop error: $e');
     } finally {
-      // immediate UI reset
-      isPlaying.value = false;
-      isLoading.value = false;
-      isPause.value = false;
-      currentPlayingUrl.value = null;
-      audioPosition.value = 0;
-      audioDuration.value = 0;
+      // Immediate UI reset
+      _resetAudioState();
     }
   }
 

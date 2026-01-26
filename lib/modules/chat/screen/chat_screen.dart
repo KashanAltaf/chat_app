@@ -21,22 +21,31 @@ import '../widgets/audio_chat_bubble.dart';
 class ChatScreen extends GetView<ChatController> {
   static const String id = '/chat';
 
-  late final String receiverUserId;
-  late final String receiverUserEmail;
-  late final String receiverUserName;
-  late final String receiverUserPhoto;
+  final String receiverUserId;
+  final String receiverUserEmail;
+  final String receiverUserName;
+  final String receiverUserPhoto;
 
-  ChatScreen({super.key}) {
-    final args = Get.arguments as Map<String, dynamic>;
-    receiverUserId = args['receiverUserId'];
-    receiverUserEmail = args['receiverUserEmail'];
-    receiverUserName = args['receiverUserName'];
-    receiverUserPhoto = args['receiverUserPhoto'];
+  ChatScreen({super.key})
+      : receiverUserId = _extractArg('receiverUserId', Get.arguments),
+        receiverUserEmail = _extractArg('receiverUserEmail', Get.arguments, ''),
+        receiverUserName = _extractArg('receiverUserName', Get.arguments, 'Unknown'),
+        receiverUserPhoto = _extractArg('receiverUserPhoto', Get.arguments, '');
+
+  static String _extractArg(String key, dynamic args, [String defaultValue = '']) {
+    if (args is Map<String, dynamic>) {
+      return args[key]?.toString() ?? defaultValue;
+    }
+    return defaultValue;
   }
 
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  // Cache instances to avoid repeated lookups
+  static final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final ChatService _chatService = ChatService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // Cache current user to avoid repeated null checks
+  User? get _currentUser => _firebaseAuth.currentUser;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +61,7 @@ class ChatScreen extends GetView<ChatController> {
                 onTap: () => Get.back(),
                 child: Icon(Icons.arrow_back, size: 20),
               ),
-              SizedBox(width: Get.width * 0.05),
+              const SizedBox(width: 20),
               CircleAvatar(
                 backgroundImage: receiverUserPhoto.isNotEmpty
                     ? CachedNetworkImageProvider(receiverUserPhoto)
@@ -61,7 +70,7 @@ class ChatScreen extends GetView<ChatController> {
                     ? const Icon(Icons.person)
                     : null,
               ),
-              SizedBox(width: Get.width * 0.04),
+              const SizedBox(width: 16),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -78,41 +87,31 @@ class ChatScreen extends GetView<ChatController> {
                   ),
                   SizedBox(height: 2),
                   StreamBuilder<DocumentSnapshot>(
-                    stream: FirebaseFirestore.instance
+                    stream: _firestore
                         .collection('users')
                         .doc(receiverUserId)
                         .snapshots(),
                     builder: (context, snapshot) {
-                      if (!snapshot.hasData) return SizedBox.shrink();
-                      final data =
-                          snapshot.data!.data() as Map<String, dynamic>?;
-                      if (data == null) return SizedBox.shrink();
+                      if (!snapshot.hasData || !snapshot.data!.exists) {
+                        return const SizedBox.shrink();
+                      }
+                      final data = snapshot.data!.data() as Map<String, dynamic>?;
+                      if (data == null) return const SizedBox.shrink();
+                      
                       final isOnline = data['isOnline'] ?? false;
-                      final lastSeen = (data['lastSeen'] as Timestamp?)
-                          ?.toDate();
+                      final lastSeen = (data['lastSeen'] as Timestamp?)?.toDate();
                       final typingTo = data['typingTo'] ?? '';
-                      final isTyping =
-                          typingTo == _firebaseAuth.currentUser!.uid;
-                      String statusText;
-                      if (isTyping) {
-                        statusText = 'Typing...';
-                      } else if (isOnline) {
-                        statusText = 'Online';
-                      }
-                      else if (lastSeen != null) {
-                        statusText =
-                        'Last seen: ${DateFormat('hh:mm a').format(lastSeen)}';
-                      }else {
-                        statusText = 'Offline';
-                      }
+                      final currentUserId = _currentUser?.uid ?? '';
+                      final isTyping = typingTo == currentUserId;
+                      
+                      final statusText = _getStatusText(isTyping, isOnline, lastSeen);
+                      
                       return Text(
                         statusText,
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.black,
-                          fontStyle: isTyping
-                              ? FontStyle.italic
-                              : FontStyle.normal,
+                          fontStyle: isTyping ? FontStyle.italic : FontStyle.normal,
                         ),
                       );
                     },
@@ -144,12 +143,16 @@ class ChatScreen extends GetView<ChatController> {
         receiverUserId: receiverUserId,
         onSend: (String filePath) async {
           try {
-            await _chatService.uploadVoice(receiverUserId, filePath, controller.recordedWaveform.toList(),);
+            await _chatService.uploadVoice(
+              receiverUserId,
+              filePath,
+              controller.recordedWaveform.toList(),
+            );
             controller.recordedWaveform.clear();
             controller.resetRecording();
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              controller.updateAndMaybeScroll();
-            });
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => controller.updateAndMaybeScroll(),
+            );
           } catch (e) {
             debugPrint('Failed to upload voice: $e');
             Get.snackbar(
@@ -163,10 +166,24 @@ class ChatScreen extends GetView<ChatController> {
     );
   }
 
+  // ---------- helper functions ----------
+  String _getStatusText(bool isTyping, bool isOnline, DateTime? lastSeen) {
+    if (isTyping) return 'Typing...';
+    if (isOnline) return 'Online';
+    if (lastSeen != null) {
+      return 'Last seen: ${DateFormat('hh:mm a').format(lastSeen)}';
+    }
+    return 'Offline';
+  }
+
   // ---------- message UI ----------
   Widget _buildMessageList() {
-    final currentUser = _firebaseAuth.currentUser!;
-    final ids = [currentUser.uid, receiverUserId]..sort();
+    final currentUserId = _currentUser?.uid;
+    if (currentUserId == null) {
+      return const Center(child: Text('Please log in to view messages'));
+    }
+    
+    final ids = [currentUserId, receiverUserId]..sort();
     final chatRoomId = ids.join('_');
 
     return StreamBuilder<QuerySnapshot>(
@@ -183,9 +200,13 @@ class ChatScreen extends GetView<ChatController> {
             !snapshot.hasData)
           return Center(child: CircularProgressIndicator());
 
-        final docs = snapshot.hasData
-            ? snapshot.data!.docs
-            : <QueryDocumentSnapshot>[];
+        final docs = snapshot.data?.docs ?? <QueryDocumentSnapshot>[];
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text('No messages yet. Start the conversation!'),
+          );
+        }
+        
         // already descending order; ListView with reverse true keeps bottom at index 0
         return ListView.builder(
           controller: controller.scrollController,
@@ -195,7 +216,7 @@ class ChatScreen extends GetView<ChatController> {
           itemBuilder: (context, index) {
             final doc = docs[index];
             final data = doc.data() as Map<String, dynamic>;
-            final isMe = data['senderId'] == currentUser.uid;
+            final isMe = data['senderId'] == currentUserId;
 
             // date chip logic
             Timestamp? prevTs;
@@ -311,7 +332,7 @@ class ChatScreen extends GetView<ChatController> {
         children: [
           const SizedBox(width: 5),
           Obx(() {
-            bool hasText = controller.hasText.value;
+            final hasText = controller.hasText.value;
             return Expanded(
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
@@ -376,14 +397,10 @@ class ChatScreen extends GetView<ChatController> {
                                 : () async {
                                     await _chatService.getImageFromCamera();
                                     if (_chatService.imageFile == null) return;
-                                    await _chatService.uploadImage(
-                                      receiverUserId,
+                                    await _chatService.uploadImage(receiverUserId);
+                                    WidgetsBinding.instance.addPostFrameCallback(
+                                      (_) => controller.updateAndMaybeScroll(),
                                     );
-                                    WidgetsBinding.instance
-                                        .addPostFrameCallback(
-                                          (_) =>
-                                              controller.updateAndMaybeScroll(),
-                                        );
                                   },
                             child: const Icon(Icons.camera_alt, size: 30),
                           ),
@@ -401,16 +418,11 @@ class ChatScreen extends GetView<ChatController> {
                                   ? null
                                   : () async {
                                       await _chatService.getImage();
-                                      if (_chatService.imageFile == null)
-                                        return;
-                                      await _chatService.uploadImage(
-                                        receiverUserId,
+                                      if (_chatService.imageFile == null) return;
+                                      await _chatService.uploadImage(receiverUserId);
+                                      WidgetsBinding.instance.addPostFrameCallback(
+                                        (_) => controller.updateAndMaybeScroll(),
                                       );
-                                      WidgetsBinding.instance
-                                          .addPostFrameCallback(
-                                            (_) => controller
-                                                .updateAndMaybeScroll(),
-                                          );
                                     },
                               child: const Icon(Icons.photo, size: 30),
                             ),
@@ -434,17 +446,7 @@ class ChatScreen extends GetView<ChatController> {
         curr.day != prev.day;
   }
 
-  DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
-
-  String _formatDateLabel(DateTime date) {
-    final now = DateTime.now();
-    if (_dateOnly(date) == _dateOnly(now)) return 'Today';
-    if (_dateOnly(date) == _dateOnly(now.subtract(const Duration(days: 1))))
-      return 'Yesterday';
-    return DateFormat('d MMM yyyy').format(date);
-  }
-
-  void sendMessages() async {
+  Future<void> sendMessages() async {
     if (controller.messageController.text.isNotEmpty) {
       final text = controller.messageController.text;
       controller.messageController.clear();
@@ -534,17 +536,17 @@ class ChatBubble extends StatelessWidget {
                 ),
               )
             : isAudio
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.audiotrack, color: Colors.white),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Voice message',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
-                ],
-              )
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.audiotrack, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        'Voice message',
+                        style: TextStyle(fontSize: 16, color: Colors.white),
+                      ),
+                    ],
+                  )
             : Text(
                 message,
                 style: const TextStyle(fontSize: 16, color: Colors.white),
