@@ -1,6 +1,8 @@
 import 'package:chat_app/modules/bottomNav/controller/bottom_nav_controller.dart';
 import 'package:chat_app/modules/chat/controller/chat_controller.dart';
 import 'package:chat_app/modules/home/controller/home_controller.dart';
+import 'package:chat_app/modules/settings/controller/settings_controller.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_instance/src/bindings_interface.dart';
@@ -12,6 +14,10 @@ class BottomNavBinding extends Bindings {
   void dependencies() {
 
     Get.lazyPut<BottomNavController>(() => BottomNavController());
+    Get.lazyPut<SettingController>(() => SettingController());
+    Get.lazyPut<HomeController>(() => HomeController());
+    Get.lazyPut<SearchController>(() => SearchController());
+
 
   }
 }

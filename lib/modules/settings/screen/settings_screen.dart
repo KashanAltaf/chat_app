@@ -10,8 +10,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../utils/firebase_api.dart';
 import '../../login/screen/login_screen.dart';
 
-class SettingScreen extends GetView<SettingController>{
-
+class SettingScreen extends GetView<SettingController> {
   static const String id = '/settings';
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
@@ -21,25 +20,29 @@ class SettingScreen extends GetView<SettingController>{
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Settings"),
+        title: const Text("Settings"),
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),
       body: Center(
         child: GestureDetector(
           onTap: () async {
+            controller.isLoading.value = true; // start loading
+
             final firebaseApi = FirebaseApi();
             await firebaseApi.removeFCMTokenFromFirestore();
 
             // Firebase logout
             await FirebaseAuth.instance.signOut();
 
-            // Google logout (THIS is the key)
+            // Google logout
             await _googleSignIn.signOut();
 
             // Clear navigation & controllers
             Get.deleteAll();
             Get.offAllNamed(LoginScreen.id);
+
+            controller.isLoading.value = false; // optional, probably won't reach here
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -51,31 +54,40 @@ class SettingScreen extends GetView<SettingController>{
                 color: AppColors.white,
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      spreadRadius: 2,
-                      blurRadius: 6
+                    color: Colors.black.withOpacity(0.2),
+                    spreadRadius: 2,
+                    blurRadius: 6,
                   ),
                 ],
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
+                child: Obx(() => Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                   Icon(
+                    controller.isLoading.value
+                        ? SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.black,
+                        strokeWidth: 2,
+                      ),
+                    )
+                        : const Icon(
                       Icons.logout,
-                     size: 30,
+                      size: 30,
                     ),
-                    Text(
+                    const Text(
                       'Logout',
                       style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w400
+                        fontSize: 22,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
-                    SizedBox.shrink(),
+                    const SizedBox.shrink(),
                   ],
-                ),
+                )),
               ),
             ),
           ),
@@ -83,5 +95,4 @@ class SettingScreen extends GetView<SettingController>{
       ),
     );
   }
-
 }
