@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chat_app/modules/chat/screen/chat_screen.dart';
+import 'package:chat_app/modules/home/controller/home_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -11,14 +12,14 @@ import '../../../data/services/chat_service.dart';
 import '../../../utils/firebase_api.dart';
 import '../../login/screen/login_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+
+class HomeScreen extends GetView<HomeController> {
   static const String id = '/home';
 
   HomeScreen({super.key});
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
   final ChatService _chatService = ChatService();
 
   @override
@@ -28,45 +29,106 @@ class HomeScreen extends StatelessWidget {
         title: const Text('Home'),
         centerTitle: true,
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search, size: 25),
+            onPressed: () {
+              controller.toggleSearch();
+            },
+          ),
+        ],
       ),
-      body: _buildUserList(context),
+      body: Column(
+        children: [
+          // Search field
+          Obx(() => controller.isTap.value
+              ? Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextFormField(
+              controller: controller.searchController,
+              focusNode: controller.searchNode,
+              onChanged: (value) {
+                controller.searchQuery.value = value;
+              },
+              decoration: InputDecoration(
+                hintText: "Search the people you've contacted with",
+                hintStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.grey),
+                enabledBorder: OutlineInputBorder(
+                  borderSide:
+                  const BorderSide(color: Colors.black, width: 1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide:
+                  const BorderSide(color: Colors.blue, width: 1),
+                ),
+                suffixIcon: _buildSuffixIcon(),
+              ),
+            ),
+          )
+              : const SizedBox.shrink()),
+          // User list (real-time search)
+          Expanded(
+            child: Obx(() {
+              final searchQuery = controller.searchQuery.value;
+              return StreamBuilder<QuerySnapshot>(
+                stream: _firestore.collection('users').snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const Center(child: Text('Something went wrong'));
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text('No users found'));
+                  }
+
+                  // Filter based on searchQuery in real-time (character by character)
+                  final docs = snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    if (_auth.currentUser?.uid == data['uid']) return false;
+
+                    if (searchQuery.isEmpty) return true;
+
+                    final name = (data['name'] ?? '').toLowerCase();
+                    return name.startsWith(searchQuery.toLowerCase());
+                  }).toList();
+
+                  if (docs.isEmpty) {
+                    return const Center(child: Text('No contact found'));
+                  }
+
+                  return ListView(
+                    children:
+                    docs.map((doc) => _buildUserListItem(context, doc)).toList(),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
     );
   }
 
-  /// 🔹 Builds the user list from Firestore
-  Widget _buildUserList(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('users').snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const Center(child: Text('Something went wrong'));
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('No users found'));
-        }
-
-        return ListView(
-          children: snapshot.data!.docs
-              .map((doc) => _buildUserListItem(context, doc))
-              .toList(),
-        );
-      },
-    );
+  Widget _buildSuffixIcon() {
+    return Obx(() => controller.searchQuery.value.isNotEmpty
+        ? IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: controller.clearSearch,
+          )
+        : const SizedBox.shrink());
   }
 
-  /// 🔹 Builds a single user tile
   Widget _buildUserListItem(BuildContext context, DocumentSnapshot document) {
     final data = document.data() as Map<String, dynamic>;
 
-    // Skip current user
-    if (_auth.currentUser?.uid == data['uid']) {
-      return const SizedBox.shrink();
-    }
+    if (_auth.currentUser?.uid == data['uid']) return const SizedBox.shrink();
 
     return ListTile(
       leading: CircleAvatar(
@@ -82,15 +144,13 @@ class HomeScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Text('Loading...');
           }
-
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Text('No message yet');
           }
 
-          // Get the latest message timestamp
           final Timestamp timestamp = snapshot.data!.docs.last['timestamp'];
-          final DateTime dateTime = timestamp.toDate();
-          final formattedTime = DateFormat('hh:mm a').format(dateTime);
+          final formattedTime =
+          DateFormat('hh:mm a').format(timestamp.toDate());
 
           return Text(formattedTime, maxLines: 1, overflow: TextOverflow.ellipsis);
         },
@@ -101,30 +161,29 @@ class HomeScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Text('Loading...');
           }
-
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Text('No message yet');
           }
 
-          // Get the latest message (the last one in ascending order)
           final lastMessage = snapshot.data!.docs.last['message'] ?? '';
           return lastMessage.toString().contains('/image/')
               ? Row(
-                  children: [
-                    Icon(Icons.camera_alt_outlined, size: 25, color: Colors.blue),
-                    SizedBox(width: 5),
-                    Text('Photo'),
-                  ],
-                )
-          : lastMessage.toString().contains('/raw/')
+            children: const [
+              Icon(Icons.camera_alt_outlined, size: 25, color: Colors.blue),
+              SizedBox(width: 5),
+              Text('Photo'),
+            ],
+          )
+              : lastMessage.toString().contains('/raw/')
               ? Row(
-            children: [
-              Icon(Icons.mic, size: 25, color: Colors.blue,),
+            children: const [
+              Icon(Icons.mic, size: 25, color: Colors.blue),
               SizedBox(width: 5),
               Text('Voice message'),
             ],
           )
-              : Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis);
+              : Text(lastMessage,
+              maxLines: 1, overflow: TextOverflow.ellipsis);
         },
       ),
       onTap: () {
@@ -141,3 +200,4 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
+
