@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:chat_app/modules/bottomNav/screen/bottom_nav_screen.dart';
 import 'package:chat_app/modules/home/screen/home_screen.dart';
 import 'package:chat_app/utils/presence_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -26,7 +27,7 @@ class LoginController extends GetxController {
         PresenceHelper.setupUserPreference(
           _auth.currentUser!.uid,
         );
-        Get.offNamed(HomeScreen.id);
+        Get.offNamed(BottomNavScreen.id);
         Get.snackbar(
           'Success',
           'Signed in successfully',
