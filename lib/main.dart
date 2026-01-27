@@ -1,3 +1,4 @@
+import 'package:chat_app/modules/bottomNav/screen/bottom_nav_screen.dart';
 import 'package:chat_app/utils/firebase_api.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,7 +37,7 @@ class MyApp extends StatelessWidget {
 
   String getInitialRoute() {
     final user = FirebaseAuth.instance.currentUser;
-    return user == null ? LoginScreen.id : HomeScreen.id;
+    return user == null ? LoginScreen.id : BottomNavScreen.id;
   }
 
   // This widget is the root of your application.

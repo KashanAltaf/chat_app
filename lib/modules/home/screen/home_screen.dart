@@ -28,29 +28,6 @@ class HomeScreen extends StatelessWidget {
         title: const Text('Home'),
         centerTitle: true,
         automaticallyImplyLeading: false,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: GestureDetector(
-              onTap: () async {
-                // Remove FCM token before logout
-                final firebaseApi = FirebaseApi();
-                await firebaseApi.removeFCMTokenFromFirestore();
-
-                // Firebase logout
-                await FirebaseAuth.instance.signOut();
-
-                // Google logout (THIS is the key)
-                await _googleSignIn.signOut();
-
-                // Clear navigation & controllers
-                Get.deleteAll();
-                Get.offAllNamed(LoginScreen.id);
-              },
-              child: const Icon(Icons.logout, size: 30),
-            ),
-          ),
-        ],
       ),
       body: _buildUserList(context),
     );
