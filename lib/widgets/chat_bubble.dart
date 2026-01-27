@@ -29,6 +29,9 @@ class ChatBubble extends StatelessWidget {
   
   /// Callback when reply preview is tapped to scroll to original message
   final VoidCallback? onReplyTap;
+  
+  /// Message type: 'text' | 'image' | 'voice'
+  final String? type;
 
   const ChatBubble({
     super.key,
@@ -42,11 +45,15 @@ class ChatBubble extends StatelessWidget {
     this.currentUserId,
     this.receiverUserName,
     this.onReplyTap,
+    this.type,
   });
 
-  bool get isImage =>
-      message.startsWith('https://res.cloudinary.com') &&
-          (message.contains('/image/upload') || message.contains('/image/upload/'));
+  bool get isImage {
+    // Check type field first, then fall back to URL pattern
+    if (type == 'image') return true;
+    return message.startsWith('https://res.cloudinary.com') &&
+        (message.contains('/image/upload') || message.contains('/image/upload/'));
+  }
 
   bool get isAudio {
     if (!message.startsWith('https://res.cloudinary.com')) return false;
@@ -194,7 +201,7 @@ class ChatBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (replyTo != null) _buildReplyPreview(context),
-            isImage
+            isImage && message.isNotEmpty
                 ? GestureDetector(
               onTap: () {
                 Navigator.push(
@@ -208,14 +215,26 @@ class ChatBubble extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
                 child: CachedNetworkImage(
                   imageUrl: message,
+                  width: 200,
+                  height: 200,
                   fit: BoxFit.cover,
                   placeholder: (c, u) => Container(
-                    height: 180,
-                    width: 180,
+                    height: 200,
+                    width: 200,
                     alignment: Alignment.center,
+                    color: Colors.grey.shade300,
                     child: const CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  errorWidget: (c, u, e) => const Icon(Icons.broken_image),
+                  errorWidget: (c, u, e) {
+                    debugPrint('ChatBubble - Image load error: $e, URL: $message');
+                    return Container(
+                      height: 200,
+                      width: 200,
+                      alignment: Alignment.center,
+                      color: Colors.grey.shade300,
+                      child: const Icon(Icons.broken_image, size: 48),
+                    );
+                  },
                 ),
               ),
             )

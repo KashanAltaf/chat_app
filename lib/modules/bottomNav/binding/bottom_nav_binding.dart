@@ -8,6 +8,7 @@ import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_instance/src/bindings_interface.dart';
 
 import '../../login/controller/login_controller.dart';
+import '../../search/controller/search_controller.dart';
 
 class BottomNavBinding extends Bindings {
   @override
@@ -16,7 +17,7 @@ class BottomNavBinding extends Bindings {
     Get.lazyPut<BottomNavController>(() => BottomNavController());
     Get.lazyPut<SettingController>(() => SettingController());
     Get.lazyPut<HomeController>(() => HomeController());
-    Get.lazyPut<SearchController>(() => SearchController());
+    Get.lazyPut<SearchingController>(() => SearchingController());
 
 
   }

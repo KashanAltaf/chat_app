@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
 
@@ -7,13 +8,26 @@ class HomeController extends GetxController {
   final FocusNode searchNode = FocusNode();
 
   RxString searchQuery = ''.obs;
+  Timer? _debounceTimer;
 
   @override
   void onInit() {
     super.onInit();
     searchController.addListener(() {
-      searchQuery.value = searchController.text;
+      // Debounce search to reduce queries
+      _debounceTimer?.cancel();
+      _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+        searchQuery.value = searchController.text;
+      });
     });
+  }
+
+  @override
+  void onClose() {
+    _debounceTimer?.cancel();
+    searchController.dispose();
+    searchNode.dispose();
+    super.onClose();
   }
 
   void toggleSearch() {

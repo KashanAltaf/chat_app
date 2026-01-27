@@ -6,6 +6,7 @@ class Message{
   final String receiverId;
   final String message;
   final Timestamp timestamp;
+  final String? type; // 'text' | 'image' | 'voice'
 
   Message({
     required this.senderEmail,
@@ -13,16 +14,21 @@ class Message{
     required this.receiverId,
     required this.message,
     required this.timestamp,
+    this.type,
   });
 
   //convert to a Map
   Map<String, dynamic> toMap(){
-    return {
+    final map = {
       'senderId' : senderId,
       'senderEmail' : senderEmail,
       'receiverId' : receiverId,
       'message' : message,
       'timestamp' : timestamp,
     };
+    if (type != null) {
+      map['type'] = type!;
+    }
+    return map;
   }
 }

@@ -59,7 +59,7 @@ class Routes {
     GetPage(
       name: SearchScreen.id,
       binding: SearchBinding(),
-      page: () => const SearchScreen(),
+      page: () => SearchScreen(),
       transition: Transition.rightToLeft,
     ),
 

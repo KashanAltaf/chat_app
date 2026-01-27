@@ -71,41 +71,70 @@ class HomeScreen extends GetView<HomeController> {
             ),
           )
               : const SizedBox.shrink()),
-          // User list (real-time search)
+          // User list (real-time search) - only shows users with existing chats
           Expanded(
             child: Obx(() {
               final searchQuery = controller.searchQuery.value;
+              final currentUserId = _auth.currentUser?.uid;
+              
+              if (currentUserId == null) {
+                return const Center(child: Text('Please log in'));
+              }
+
+              // Get all users first, then check which ones have messages
               return StreamBuilder<QuerySnapshot>(
                 stream: _firestore.collection('users').snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
+                builder: (context, usersSnapshot) {
+                  if (usersSnapshot.hasError) {
                     return const Center(child: Text('Something went wrong'));
                   }
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (usersSnapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  if (!usersSnapshot.hasData || usersSnapshot.data!.docs.isEmpty) {
                     return const Center(child: Text('No users found'));
                   }
 
-                  // Filter based on searchQuery in real-time (character by character)
-                  final docs = snapshot.data!.docs.where((doc) {
+                  // Filter users: exclude current user and apply search filter
+                  final filteredUsers = usersSnapshot.data!.docs.where((doc) {
                     final data = doc.data() as Map<String, dynamic>;
-                    if (_auth.currentUser?.uid == data['uid']) return false;
+                    final userId = data['uid'] as String?;
+                    
+                    if (userId == null || userId == currentUserId) return false;
 
-                    if (searchQuery.isEmpty) return true;
+                    // Apply search filter if search query is not empty
+                    if (searchQuery.isNotEmpty) {
+                      final name = (data['name'] ?? '').toLowerCase();
+                      return name.startsWith(searchQuery.toLowerCase());
+                    }
 
-                    final name = (data['name'] ?? '').toLowerCase();
-                    return name.startsWith(searchQuery.toLowerCase());
+                    return true;
                   }).toList();
 
-                  if (docs.isEmpty) {
+                  if (filteredUsers.isEmpty) {
                     return const Center(child: Text('No contact found'));
                   }
 
+                  // Build list items - each will check if messages exist
+                  // Only show users who have actual messages (not empty messages collection)
                   return ListView(
-                    children:
-                    docs.map((doc) => _buildUserListItem(context, doc)).toList(),
+                    children: filteredUsers.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final userId = data['uid'] as String;
+                      // Check if this user has messages with current user
+                      return StreamBuilder<QuerySnapshot>(
+                        stream: _chatService.getLastMessage(currentUserId, userId),
+                        builder: (context, messagesSnapshot) {
+                          // Only show if messages exist (messages collection is not empty)
+                          if (messagesSnapshot.hasData && 
+                              messagesSnapshot.data!.docs.isNotEmpty) {
+                            return _buildUserListItem(context, doc);
+                          }
+                          // Hide users without messages - they should appear in search screen
+                          return const SizedBox.shrink();
+                        },
+                      );
+                    }).toList(),
                   );
                 },
               );
@@ -139,51 +168,64 @@ class HomeScreen extends GetView<HomeController> {
       ),
       title: Text(data['name'] ?? 'No Name'),
       trailing: StreamBuilder<QuerySnapshot>(
-        stream: _chatService.getMessages(_auth.currentUser!.uid, data['uid']),
+        stream: _chatService.getLastMessage(_auth.currentUser!.uid, data['uid']),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Text('Loading...');
+            return const SizedBox(width: 60, height: 20, child: CircularProgressIndicator(strokeWidth: 2));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Text('No message yet');
+            return const Text('', style: TextStyle(fontSize: 12));
           }
 
-          final Timestamp timestamp = snapshot.data!.docs.last['timestamp'];
+          final messageData = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+          final Timestamp timestamp = messageData['timestamp'] as Timestamp;
           final formattedTime =
           DateFormat('hh:mm a').format(timestamp.toDate());
 
-          return Text(formattedTime, maxLines: 1, overflow: TextOverflow.ellipsis);
+          return Text(formattedTime, 
+            maxLines: 1, 
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12),
+          );
         },
       ),
       subtitle: StreamBuilder<QuerySnapshot>(
-        stream: _chatService.getMessages(_auth.currentUser!.uid, data['uid']),
+        stream: _chatService.getLastMessage(_auth.currentUser!.uid, data['uid']),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Text('Loading...');
+            return const SizedBox(height: 20, child: Text('Loading...', style: TextStyle(fontSize: 12)));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Text('No message yet');
+            return const Text('No message yet', style: TextStyle(fontSize: 12));
           }
 
-          final lastMessage = snapshot.data!.docs.last['message'] ?? '';
-          return lastMessage.toString().contains('/image/')
-              ? Row(
-            children: const [
-              Icon(Icons.camera_alt_outlined, size: 25, color: Colors.blue),
-              SizedBox(width: 5),
-              Text('Photo'),
-            ],
-          )
-              : lastMessage.toString().contains('/raw/')
-              ? Row(
-            children: const [
-              Icon(Icons.mic, size: 25, color: Colors.blue),
-              SizedBox(width: 5),
-              Text('Voice message'),
-            ],
-          )
-              : Text(lastMessage,
-              maxLines: 1, overflow: TextOverflow.ellipsis);
+          final messageData = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+          final lastMessage = messageData['message'] ?? '';
+          final messageType = messageData['type'] as String?;
+          
+          if (messageType == 'image' || lastMessage.toString().contains('/image/')) {
+            return const Row(
+              children: [
+                Icon(Icons.camera_alt_outlined, size: 20, color: Colors.blue),
+                SizedBox(width: 5),
+                Text('Photo', style: TextStyle(fontSize: 12)),
+              ],
+            );
+          } else if (messageType == 'voice' || lastMessage.toString().contains('/raw/')) {
+            return const Row(
+              children: [
+                Icon(Icons.mic, size: 20, color: Colors.blue),
+                SizedBox(width: 5),
+                Text('Voice message', style: TextStyle(fontSize: 12)),
+              ],
+            );
+          } else {
+            return Text(lastMessage,
+              maxLines: 1, 
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12),
+            );
+          }
         },
       ),
       onTap: () {

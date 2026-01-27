@@ -22,6 +22,7 @@ import 'package:swipe_to/swipe_to.dart';
 
 import '../../../utils/firebase_api.dart';
 import '../../../widgets/chat_bubble.dart';
+import '../../../widgets/upload_progress_dialog.dart';
 import '../model/message.dart';
 import '../widgets/audio_chat_bubble.dart';
 
@@ -78,52 +79,54 @@ class ChatScreen extends GetView<ChatController> {
                     : null,
               ),
               const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    receiverUserName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.background,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      receiverUserName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.background,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 2),
-                  StreamBuilder<DocumentSnapshot>(
-                    stream: _firestore
-                        .collection('users')
-                        .doc(receiverUserId)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData || !snapshot.data!.exists) {
-                        return const SizedBox.shrink();
-                      }
-                      final data = snapshot.data!.data() as Map<String, dynamic>?;
-                      if (data == null) return const SizedBox.shrink();
-                      
-                      final isOnline = data['isOnline'] ?? false;
-                      final lastSeen = (data['lastSeen'] as Timestamp?)?.toDate();
-                      final typingTo = data['typingTo'] ?? '';
-                      final currentUserId = _currentUser?.uid ?? '';
-                      final isTyping = typingTo == currentUserId;
-                      
-                      final statusText = _getStatusText(isTyping, isOnline, lastSeen);
-                      
-                      return Text(
-                        statusText,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.black,
-                          fontStyle: isTyping ? FontStyle.italic : FontStyle.normal,
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                    SizedBox(height: 2),
+                    StreamBuilder<DocumentSnapshot>(
+                      stream: _firestore
+                          .collection('users')
+                          .doc(receiverUserId)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData || !snapshot.data!.exists) {
+                          return const SizedBox.shrink();
+                        }
+                        final data = snapshot.data!.data() as Map<String, dynamic>?;
+                        if (data == null) return const SizedBox.shrink();
+
+                        final isOnline = data['isOnline'] ?? false;
+                        final lastSeen = (data['lastSeen'] as Timestamp?)?.toDate();
+                        final typingTo = data['typingTo'] ?? '';
+                        final currentUserId = _currentUser?.uid ?? '';
+                        final isTyping = typingTo == currentUserId;
+
+                        final statusText = _getStatusText(isTyping, isOnline, lastSeen);
+
+                        return Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.black,
+                            fontStyle: isTyping ? FontStyle.italic : FontStyle.normal,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -198,6 +201,7 @@ class ChatScreen extends GetView<ChatController> {
           .doc(chatRoomId)
           .collection('messages')
           .orderBy('timestamp', descending: true)
+          .limit(100) // Limit to last 100 messages for performance
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError)
@@ -218,6 +222,7 @@ class ChatScreen extends GetView<ChatController> {
           controller: controller.scrollController,
           reverse: true,
           padding: const EdgeInsets.only(bottom: 10, top: 10),
+          cacheExtent: 500, // Cache more items for smoother scrolling
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final doc = docs[index];
@@ -230,8 +235,11 @@ class ChatScreen extends GetView<ChatController> {
 
             // date chip logic
             Timestamp? prevTs;
-            if (index + 1 < docs.length) prevTs = docs[index + 1]['timestamp'];
-            final showDateChip = _isNewDay(data['timestamp'], prevTs);
+            if (index + 1 < docs.length) {
+              final prevData = docs[index + 1].data() as Map<String, dynamic>;
+              prevTs = prevData['timestamp'] as Timestamp?;
+            }
+            final showDateChip = _isNewDay(data['timestamp'] as Timestamp, prevTs);
 
             return _SwipeReplyWrapper(
               triggerThreshold: 110,
@@ -332,12 +340,13 @@ class ChatScreen extends GetView<ChatController> {
                                 : Container(
                                     key: rowKey,
                                     child: ChatBubble(
-                                      message: data['message'],
+                                      message: data['message'] ?? '',
                                       color: isMe ? Colors.blue : Colors.grey,
                                       radiusBottomLeft: isMe ? 8 : 0,
                                       radiusBottomRight: isMe ? 0 : 8,
                                       radiusTopLeft: 8,
                                       radiusTopRight: 8,
+                                      type: (data['type'] as String?),
                                       replyTo: (data['replyTo'] as Map<String, dynamic>?),
                                       currentUserId: currentUserId,
                                       receiverUserName: receiverUserName,
@@ -563,12 +572,47 @@ class ChatScreen extends GetView<ChatController> {
                           onTap: controller.shouldBlockTap()
                               ? null
                               : () async {
-                            await _chatService.getImageFromCamera();
-                            if (_chatService.imageFile == null) return;
-                            await _chatService.uploadImage(receiverUserId);
-                            WidgetsBinding.instance.addPostFrameCallback(
-                                  (_) => controller.updateAndMaybeScroll(),
-                            );
+                            try {
+                              final imageFile = await _chatService.getImageFromCamera();
+                              if (imageFile == null) return;
+                              
+                              // Show progress dialog
+                              final progressController = UploadProgressDialog.show(
+                                onCancel: () {
+                                  // Cancel logic can be added here if needed
+                                  debugPrint('Upload cancelled by user');
+                                },
+                              );
+                              
+                              try {
+                                await _chatService.uploadImage(
+                                  receiverUserId, 
+                                  imageFile,
+                                  onProgress: (progress) {
+                                    progressController.updateProgress(progress);
+                                  },
+                                );
+                                
+                                UploadProgressDialog.dismiss();
+                                WidgetsBinding.instance.addPostFrameCallback(
+                                      (_) => controller.updateAndMaybeScroll(),
+                                );
+                                
+                                debugPrint('Camera image uploaded successfully');
+                              } catch (e) {
+                                UploadProgressDialog.dismiss();
+                                debugPrint('Camera image upload error: $e');
+                                Get.snackbar(
+                                  'Error',
+                                  'Failed to upload image: ${e.toString()}',
+                                  duration: const Duration(seconds: 3),
+                                  snackPosition: SnackPosition.BOTTOM,
+                                );
+                              }
+                            } catch (e) {
+                              UploadProgressDialog.dismiss();
+                              debugPrint('Camera image selection error: $e');
+                            }
                           },
                           child: const Icon(Icons.camera_alt, size: 30),
                         ),
@@ -585,12 +629,47 @@ class ChatScreen extends GetView<ChatController> {
                             onTap: controller.shouldBlockTap()
                                 ? null
                                 : () async {
-                              await _chatService.getImage();
-                              if (_chatService.imageFile == null) return;
-                              await _chatService.uploadImage(receiverUserId);
-                              WidgetsBinding.instance.addPostFrameCallback(
-                                    (_) => controller.updateAndMaybeScroll(),
-                              );
+                              try {
+                                final imageFile = await _chatService.getImage();
+                                if (imageFile == null) return;
+                                
+                                // Show progress dialog
+                                final progressController = UploadProgressDialog.show(
+                                  onCancel: () {
+                                    // Cancel logic can be added here if needed
+                                    debugPrint('Upload cancelled by user');
+                                  },
+                                );
+                                
+                                try {
+                                  await _chatService.uploadImage(
+                                    receiverUserId, 
+                                    imageFile,
+                                    onProgress: (progress) {
+                                      progressController.updateProgress(progress);
+                                    },
+                                  );
+                                  
+                                  UploadProgressDialog.dismiss();
+                                  WidgetsBinding.instance.addPostFrameCallback(
+                                        (_) => controller.updateAndMaybeScroll(),
+                                  );
+                                  
+                                  debugPrint('Gallery image uploaded successfully');
+                                } catch (e) {
+                                  UploadProgressDialog.dismiss();
+                                  debugPrint('Gallery image upload error: $e');
+                                  Get.snackbar(
+                                    'Error',
+                                    'Failed to upload image: ${e.toString()}',
+                                    duration: const Duration(seconds: 3),
+                                    snackPosition: SnackPosition.BOTTOM,
+                                  );
+                                }
+                              } catch (e) {
+                                UploadProgressDialog.dismiss();
+                                debugPrint('Gallery image selection error: $e');
+                              }
                             },
                             child: const Icon(Icons.photo, size: 30),
                           ),
