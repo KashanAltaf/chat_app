@@ -1,6 +1,8 @@
 // lib/modules/chat/controller/chat_controller.dart
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -9,11 +11,18 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:just_audio/just_audio.dart' as ja;
 
 import '../../../utils/waveform_utils.dart';
+import '../model/message.dart';
 
 class ChatController extends GetxController {
   final TextEditingController messageController = TextEditingController();
+  final FocusNode messageNode = FocusNode();
   RxBool hasText = false.obs;
   RxBool isPlaying = false.obs;
+  RxString replyMessage = ''.obs;
+  RxString replySenderId = ''.obs;
+  RxString replyMessageId = ''.obs;
+  RxString replyType = ''.obs;
+  RxString otherUserName = ''.obs;
 
   final ScrollController scrollController = ScrollController();
 
@@ -445,4 +454,131 @@ class ChatController extends GetxController {
     player.seek(duration);
     audioPosition.value = value.toInt();
   }
+
+  void replyToMessage(String message, {String? senderId, String? messageId, String? type, String? senderName,}) {
+    replyMessage.value = message;
+    replySenderId.value = senderId ?? '';
+    replyMessageId.value = messageId ?? '';
+    replyType.value = type ?? 'text';
+    if (senderName != null && senderName.isNotEmpty) {
+      otherUserName.value = senderName;
+    }
+
+    // ensure the input gets focus when invoked from UI
+    Future.microtask(() {
+      messageNode.requestFocus();
+    });
+  }
+
+  void clearReply() {
+    replyMessage.value = '';
+    replySenderId.value = '';
+    replyMessageId.value = '';
+    replyType.value = '';
+  }
+
+  final Map<String, GlobalKey> messageKeys = {};
+  final Map<String, int> messageIndices = {}; // Store messageId -> index mapping
+
+  Future<void> scrollToMessage(String messageId) async {
+    if (messageId.isEmpty) {
+      Get.snackbar('Notice', 'No referenced message id available.');
+      return;
+    }
+
+    debugPrint('🔍 scrollToMessage: Looking for messageId: $messageId');
+
+    // Ensure scroll controller is ready
+    if (!scrollController.hasClients) {
+      debugPrint('⏳ ScrollController not ready, waiting...');
+      int waitAttempts = 0;
+      while (!scrollController.hasClients && waitAttempts < 10) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        waitAttempts++;
+      }
+      if (!scrollController.hasClients) {
+        debugPrint('❌ ScrollController never became ready');
+        Get.snackbar('Notice', 'Unable to scroll. Please try again.');
+        return;
+      }
+    }
+
+    // First, try to scroll to approximate position if we have the index
+    final messageIndex = messageIndices[messageId];
+    if (messageIndex != null && scrollController.hasClients) {
+      debugPrint('📍 Found message at index: $messageIndex');
+      try {
+        // Since ListView is reversed (reverse: true):
+        // - Index 0 is at the bottom (scroll position 0)
+        // - Higher indices are above, requiring higher scroll positions
+        // - To bring an item into view, we scroll UP (increase position)
+        
+        // Estimate item height (approximate, including padding)
+        const estimatedItemHeight = 120.0; // Approximate height per message with padding
+        
+        // Calculate target scroll position
+        // With reverse: true, scrolling up means increasing position
+        final targetPosition = messageIndex * estimatedItemHeight;
+        final maxScroll = scrollController.position.maxScrollExtent;
+        final currentPosition = scrollController.position.pixels;
+        
+        // Only scroll if the target is significantly different from current position
+        if ((targetPosition - currentPosition).abs() > 50) {
+          final clampedPosition = math.min(targetPosition, maxScroll);
+          
+          debugPrint('📍 Current position: $currentPosition, Target: $clampedPosition, Max: $maxScroll');
+          
+          await scrollController.animateTo(
+            clampedPosition,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+          
+          // Wait for the widget to be built and rendered
+          await Future.delayed(const Duration(milliseconds: 300));
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error scrolling to approximate position: $e');
+      }
+    }
+
+    // Now try to use ensureVisible with retries
+    int attempts = 0;
+    const maxAttempts = 15;
+    const delayMs = 150;
+
+    while (attempts < maxAttempts) {
+      final key = messageKeys[messageId];
+      if (key != null && key.currentContext != null) {
+        try {
+          debugPrint('✅ Found message key with context, using ensureVisible...');
+          
+          await Scrollable.ensureVisible(
+            key.currentContext!,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+            alignment: 0.3,
+          );
+          
+          debugPrint('✅ Successfully scrolled to message');
+          return; // Success, exit
+        } catch (e) {
+          debugPrint('❌ ensureVisible error: $e');
+          // Continue retrying
+        }
+      }
+      
+      // Wait a bit before retrying
+      await Future.delayed(Duration(milliseconds: delayMs));
+      attempts++;
+    }
+
+    // If we get here, the message wasn't found after retries
+    debugPrint('❌ Failed to scroll to message after $maxAttempts attempts');
+    Get.snackbar('Notice', 'Could not scroll to the original message. It may be outside the current view.');
+  }
+
+  /// Helper to get current user's uid
+  String get currentUserId => FirebaseAuth.instance.currentUser?.uid ?? '';
+
 }

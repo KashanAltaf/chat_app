@@ -184,4 +184,44 @@ class ChatService extends GetxService {
     }
   }
 
+  Future<void> sendMessageWithReply({
+    required String receiverId,
+    required String message,
+    String? replyMessage,
+    String? replySenderId,
+    String? replyMessageId,
+    String? replyType, // 'text' | 'image' | 'voice'
+  }) async {
+    final currentUser = _firebaseAuth.currentUser!;
+    final timestamp = Timestamp.now();
+
+    final ids = [currentUser.uid, receiverId]..sort();
+    final chatRoomId = ids.join("_");
+
+    final msgMap = {
+      'senderEmail': currentUser.email,
+      'senderId': currentUser.uid,
+      'receiverId': receiverId,
+      'message': message,
+      'timestamp': timestamp,
+      'type': 'text',
+    };
+
+    if (replyMessage != null && replyMessage.isNotEmpty) {
+      msgMap['replyTo'] = {
+        'message': replyMessage,
+        'senderId': replySenderId ?? '',
+        'messageId': replyMessageId ?? '',
+        'type': replyType ?? 'text',
+      };
+    }
+
+    await _firestore
+        .collection('chat_rooms')
+        .doc(chatRoomId)
+        .collection('messages')
+        .add(msgMap);
+  }
+
+
 }
