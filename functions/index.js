@@ -44,14 +44,25 @@ exports.sendMessageNotification = functions.firestore
       }
 
       const receiverData = receiverDoc.data();
-      const receiverToken = receiverData?.fcmToken;
+      console.log('   Receiver data keys:', Object.keys(receiverData || {}));
+      
+      // Check for token with multiple possible field names (case variations)
+      const receiverToken = receiverData?.fcmToken || receiverData?.FCMToken || receiverData?.fcm_token || receiverData?.FCM_TOKEN;
 
       console.log('   Receiver found:', receiverId);
       console.log('   Receiver has FCM token:', !!receiverToken);
+      console.log('   FCM Token type:', typeof receiverToken);
+      console.log('   FCM Token value:', receiverToken ? (typeof receiverToken === 'string' ? receiverToken.substring(0, 20) + '...' : String(receiverToken)) : 'null');
+      console.log('   FCM Token length:', receiverToken && typeof receiverToken === 'string' ? receiverToken.length : 'N/A');
 
-      if (!receiverToken) {
-        console.log('⚠️ Receiver FCM token not found in Firestore');
-        console.log('   Receiver data:', JSON.stringify(receiverData));
+      // Check if token is valid (not null, not undefined, not empty string)
+      if (!receiverToken || (typeof receiverToken === 'string' && receiverToken.trim().length === 0)) {
+        console.log('⚠️ Receiver FCM token is null, undefined, or empty');
+        console.log('   Available fields:', Object.keys(receiverData || {}));
+        console.log('   fcmToken value:', receiverData?.fcmToken);
+        console.log('   FCMToken value:', receiverData?.FCMToken);
+        console.log('   fcm_token value:', receiverData?.fcm_token);
+        console.log('   Receiver data:', JSON.stringify(receiverData, null, 2));
         return null;
       }
 
@@ -151,16 +162,23 @@ exports.sendPushNotification = functions.https.onCall(async (data, context) => {
     console.log('   Receiver data keys:', Object.keys(receiverData || {}));
     console.log('   Receiver data:', JSON.stringify(receiverData, null, 2));
     
-    const receiverToken = receiverData?.fcmToken;
+    // Check for token with multiple possible field names (case variations)
+    const receiverToken = receiverData?.fcmToken || receiverData?.FCMToken || receiverData?.fcm_token || receiverData?.FCM_TOKEN;
     console.log('   FCM Token exists:', !!receiverToken);
-    console.log('   FCM Token value:', receiverToken ? receiverToken.substring(0, 20) + '...' : 'null');
+    console.log('   FCM Token type:', typeof receiverToken);
+    console.log('   FCM Token value:', receiverToken ? (typeof receiverToken === 'string' ? receiverToken.substring(0, 20) + '...' : String(receiverToken)) : 'null');
+    console.log('   FCM Token length:', receiverToken && typeof receiverToken === 'string' ? receiverToken.length : 'N/A');
 
-    if (!receiverToken) {
-      console.log('❌ Receiver FCM token is null or empty');
+    // Check if token is valid (not null, not undefined, not empty string)
+    if (!receiverToken || (typeof receiverToken === 'string' && receiverToken.trim().length === 0)) {
+      console.log('❌ Receiver FCM token is null, undefined, or empty');
       console.log('   Available fields:', Object.keys(receiverData || {}));
+      console.log('   fcmToken value:', receiverData?.fcmToken);
+      console.log('   FCMToken value:', receiverData?.FCMToken);
+      console.log('   fcm_token value:', receiverData?.fcm_token);
       throw new functions.https.HttpsError(
         'not-found',
-        `Receiver FCM token not found. Available fields: ${Object.keys(receiverData || {}).join(', ')}`
+        `Receiver FCM token not found. Available fields: ${Object.keys(receiverData || {}).join(', ')}. Token value: ${receiverToken}`
       );
     }
 
