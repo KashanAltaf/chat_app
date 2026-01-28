@@ -23,6 +23,7 @@ import 'package:swipe_to/swipe_to.dart';
 import '../../../utils/firebase_api.dart';
 import '../../../widgets/chat_bubble.dart';
 import '../../../widgets/upload_progress_dialog.dart';
+import '../../bottomNav/screen/bottom_nav_screen.dart';
 import '../model/message.dart';
 import '../widgets/audio_chat_bubble.dart';
 
@@ -33,16 +34,27 @@ class ChatScreen extends GetView<ChatController> {
   final String receiverUserEmail;
   final String receiverUserName;
   final String receiverUserPhoto;
+  final bool fromSearch;
 
   ChatScreen({super.key})
       : receiverUserId = _extractArg('receiverUserId', Get.arguments),
         receiverUserEmail = _extractArg('receiverUserEmail', Get.arguments, ''),
         receiverUserName = _extractArg('receiverUserName', Get.arguments, 'Unknown'),
-        receiverUserPhoto = _extractArg('receiverUserPhoto', Get.arguments, '');
+        receiverUserPhoto = _extractArg('receiverUserPhoto', Get.arguments, ''),
+        fromSearch = _extractBoolArg('fromSearch', Get.arguments);
 
   static String _extractArg(String key, dynamic args, [String defaultValue = '']) {
     if (args is Map<String, dynamic>) {
       return args[key]?.toString() ?? defaultValue;
+    }
+    return defaultValue;
+  }
+
+  static bool _extractBoolArg(String key, dynamic args, [bool defaultValue = false]) {
+    if (args is Map<String, dynamic>) {
+      final value = args[key];
+      if (value is bool) return value;
+      if (value is String) return value.toLowerCase() == 'true';
     }
     return defaultValue;
   }
@@ -74,7 +86,15 @@ class ChatScreen extends GetView<ChatController> {
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
               GestureDetector(
-                onTap: () => Get.back(),
+                onTap: () {
+                  if (fromSearch) {
+                    // Navigate to BottomNavScreen (home tab) instead of going back to SearchScreen
+                    // This clears the search screen from the stack and shows home
+                    Get.offAllNamed(BottomNavScreen.id);
+                  } else {
+                    Get.back();
+                  }
+                },
                 child: Icon(Icons.arrow_back, size: 20),
               ),
               const SizedBox(width: 20),

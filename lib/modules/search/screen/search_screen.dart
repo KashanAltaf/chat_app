@@ -222,6 +222,9 @@ class SearchScreen extends GetView<SearchingController>{
           controller.addToRecentSearches(searchQuery);
         }
         
+        // Clear search field and query before navigating
+        controller.clearSearch();
+        
         Get.toNamed(
           ChatScreen.id,
           arguments: {
@@ -229,6 +232,7 @@ class SearchScreen extends GetView<SearchingController>{
             'receiverUserId': data['uid'],
             'receiverUserName': data['name'],
             'receiverUserPhoto': data['photoUrl'],
+            'fromSearch': true, // Flag to indicate we came from search screen
           },
         );
       },
