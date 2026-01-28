@@ -57,6 +57,14 @@ class ChatScreen extends GetView<ChatController> {
 
   @override
   Widget build(BuildContext context) {
+    // Set current chat room for notification handling
+    final currentUserId = _currentUser?.uid;
+    if (currentUserId != null) {
+      final ids = [currentUserId, receiverUserId]..sort();
+      final chatRoomId = ids.join('_');
+      FirebaseApi().setCurrentChatRoom(chatRoomId);
+    }
+    
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
@@ -724,20 +732,7 @@ class ChatScreen extends GetView<ChatController> {
         replyType: replyType.isNotEmpty ? replyType : null,
       );
 
-      // 2️⃣ Compute chatRoomId (same logic as ChatService)
-      final currentUserId = FirebaseAuth.instance.currentUser!.uid;
-      final ids = [currentUserId, receiverUserId]..sort();
-      final chatRoomId = ids.join('_');
-
-      // 3️⃣ Send push notification
-      await FirebaseApi().sendPushNotification(
-        receiverUserId: receiverUserId,
-        messageContent: text,
-        chatId: chatRoomId,
-        messageType: 'text',
-      );
-
-      // 4️⃣ Scroll to bottom if locked
+      // 2️⃣ Scroll to bottom if locked
       WidgetsBinding.instance.addPostFrameCallback((_) {
         controller.updateAndMaybeScroll();
       });

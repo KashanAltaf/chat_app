@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:chat_app/modules/bottomNav/screen/bottom_nav_screen.dart';
 import 'package:chat_app/modules/home/screen/home_screen.dart';
 import 'package:chat_app/utils/presence_helper.dart';
+import 'package:chat_app/utils/firebase_api.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,13 @@ class LoginController extends GetxController {
         PresenceHelper.setupUserPreference(
           _auth.currentUser!.uid,
         );
+        
+        // Ensure FCM token is saved after login
+        await FirebaseApi().ensureFCMTokenSaved();
+        
+        // Start listening to Firestore messages for notifications
+        FirebaseApi().restartMessageListener();
+        
         Get.offNamed(BottomNavScreen.id);
         Get.snackbar(
           'Success',

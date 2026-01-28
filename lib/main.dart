@@ -30,6 +30,16 @@ void main() async {
   }
 
   await FirebaseApi().initNotifications();
+  
+  // If user is already logged in, ensure FCM token is saved
+  final user = FirebaseAuth.instance.currentUser;
+  if (user != null) {
+    // Ensure token is saved after a short delay to allow Firestore to be ready
+    Future.delayed(const Duration(seconds: 2), () async {
+      await FirebaseApi().ensureFCMTokenSaved();
+    });
+  }
+  
   runApp(const MyApp());
 }
 class MyApp extends StatelessWidget {
